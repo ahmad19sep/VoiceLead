@@ -157,7 +157,16 @@ Example voice webhook payload:
 
 ## Important Files
 
-- `app.py` - full Python app
+- `app.py` - small app entry point
+- `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
+- `callpilot/storage.py` - SQLite connection and schema setup
+- `callpilot/repositories.py` - database read helpers
+- `callpilot/analysis.py` - mock AI call analysis, field extraction, and scoring
+- `callpilot/workflows.py` - lead, booking, notification, and event creation
+- `callpilot/telephony.py` - Twilio/TwiML helpers and outbound-call support
+- `callpilot/http.py` - HTTP request handler and route dispatch
+- `callpilot/server.py` - local server startup
+- `callpilot/views/` - dashboard, CRM, agent builder, calling, and settings pages
 - `callpilot.db` - SQLite database, created automatically
 - `.env.example` - future API key template
 - `README.md` - these instructions

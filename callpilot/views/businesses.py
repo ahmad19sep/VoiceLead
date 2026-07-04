@@ -5,8 +5,8 @@ from .layout import layout
 from ..repositories import get_business, get_businesses, get_knowledge, get_leads, get_services
 from ..stats import stats
 from ..storage import db
-from ..ui import status_badge, temp_badge
-from ..utils import esc
+from ..ui import badge, status_badge, temp_badge
+from ..utils import esc, title
 
 
 def render_businesses() -> str:
@@ -50,6 +50,23 @@ def render_business_detail(business_id: int) -> str:
         services = get_services(conn, business_id)
         knowledge = get_knowledge(conn, business_id)
         leads = get_leads(conn, {"business_id": str(business_id)})[:5]
+    production_items = [
+        ("Module", title(business.get("module_key") or "custom")),
+        ("Workflow", business.get("workflow_version") or "v1"),
+        ("Languages", business.get("supported_languages") or "Not configured"),
+        ("Compliance", business.get("compliance_profile") or "Not configured"),
+        ("Consent", business.get("consent_policy") or "Not configured"),
+        ("Quiet Hours", business.get("quiet_hours") or "Not configured"),
+        ("Max Attempts", business.get("max_outbound_attempts") if business.get("max_outbound_attempts") is not None else "Not configured"),
+        ("Integrations", business.get("integration_targets") or "Not configured"),
+    ]
+    production_html = "".join(
+        f'<div class="mini"><span>{esc(label)}</span><strong>{esc(value)}</strong></div>' for label, value in production_items
+    )
+    blocked = [line.strip() for line in (business.get("blocked_outcomes") or "").splitlines() if line.strip()]
+    allowed = [line.strip() for line in (business.get("allowed_call_types") or "").splitlines() if line.strip()]
+    guardrail_html = "".join(f"<li>{esc(item)}</li>" for item in blocked) or "<li>No blocked outcomes configured.</li>"
+    allowed_html = "".join(f"<li>{esc(item)}</li>" for item in allowed) or "<li>No allowed call types configured.</li>"
     services_html = "".join(
         f'<div class="mini"><span>{esc(s["name"])}</span><strong>{esc(s["description"])}</strong><p class="muted">{esc(s["price_note"])}</p></div>'
         for s in services
@@ -73,7 +90,16 @@ def render_business_detail(business_id: int) -> str:
       <div class="actions">
         <a class="btn primary" href="/demo-call?business_id={business_id}">Test Call</a>
         <a class="btn" href="/agent-builder?business_id={business_id}">Edit Agent</a>
+        <a class="btn" href="/api/businesses/{business_id}/readiness">Readiness JSON</a>
       </div>
+    </section>
+    <section class="panel pad" style="margin-top:18px;">
+      <div class="row"><h2>Production Configuration</h2>{badge('PDF Pack Aligned', 'status-active')}</div>
+      <div class="grid four" style="margin-top:14px;">{production_html}</div>
+    </section>
+    <section class="grid two" style="margin-top:18px;">
+      <div class="panel pad"><h2>Allowed Workflows</h2><ul>{allowed_html}</ul></div>
+      <div class="panel pad"><h2>Blocked Outcomes</h2><ul>{guardrail_html}</ul></div>
     </section>
     <section class="grid two" style="margin-top:18px;">
       <div class="panel pad"><h2>Services</h2><div class="grid three" style="margin-top:14px;">{services_html}</div></div>

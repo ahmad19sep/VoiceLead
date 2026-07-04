@@ -61,8 +61,11 @@ Keep the PowerShell window open while using the app.
 - Multi-business dashboard
 - Seed businesses for hotel, clinic, home services, restaurant, software agency, and law firm
 - Agent Builder
+- PDF-pack aligned industry module configuration
+- Per-business language, compliance, consent, recording, QA, and outbound policy settings
 - Services and FAQs per business
 - Mock AI call analysis
+- Language detection and regulated-advice guardrails in mock analysis
 - Universal lead scoring
 - Hot, warm, and cold lead categories
 - Booking request creation
@@ -136,6 +139,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 ## API Routes
 
 - `GET /api/businesses`
+- `GET /api/businesses/{id}/readiness`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
@@ -159,6 +163,7 @@ Example voice webhook payload:
 
 - `app.py` - small app entry point
 - `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
+- `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
 - `callpilot/storage.py` - SQLite connection and schema setup
 - `callpilot/repositories.py` - database read helpers
 - `callpilot/analysis.py` - mock AI call analysis, field extraction, and scoring
@@ -170,6 +175,7 @@ Example voice webhook payload:
 - `callpilot.db` - SQLite database, created automatically
 - `.env.example` - future API key template
 - `README.md` - these instructions
+- `docs/PDF_IMPLEMENTATION_NOTES.md` - PDF pack implementation notes and next phases
 
 ## If Browser Says Refused To Connect
 

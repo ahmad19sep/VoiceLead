@@ -15,6 +15,12 @@ def db() -> sqlite3.Connection:
 def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row else None
 
+def ensure_columns(conn: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+    existing = {row["name"] for row in conn.execute(f"pragma table_info({table})").fetchall()}
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f"alter table {table} add column {name} {definition}")
+
 def init_db() -> None:
     with db() as conn:
         conn.executescript(
@@ -35,6 +41,19 @@ def init_db() -> None:
                 fallback_message text,
                 hot_lead_threshold integer default 75,
                 warm_lead_threshold integer default 45,
+                module_key text default 'custom',
+                intake_fields text,
+                allowed_call_types text,
+                blocked_outcomes text,
+                supported_languages text,
+                compliance_profile text,
+                consent_policy text,
+                recording_disclosure text,
+                quiet_hours text,
+                max_outbound_attempts integer default 0,
+                integration_targets text,
+                qa_checks text,
+                workflow_version text default 'v1',
                 handoff_name text,
                 handoff_phone text,
                 handoff_email text,
@@ -187,6 +206,63 @@ def init_db() -> None:
             );
             """
         )
+        ensure_columns(
+            conn,
+            "businesses",
+            {
+                "module_key": "text default 'custom'",
+                "intake_fields": "text",
+                "allowed_call_types": "text",
+                "blocked_outcomes": "text",
+                "supported_languages": "text",
+                "compliance_profile": "text",
+                "consent_policy": "text",
+                "recording_disclosure": "text",
+                "quiet_hours": "text",
+                "max_outbound_attempts": "integer default 0",
+                "integration_targets": "text",
+                "qa_checks": "text",
+                "workflow_version": "text default 'v1'",
+            },
+        )
+        from .modules import comma, lines, module_for_business_type
+
+        for row in conn.execute("select id, business_type, module_key from businesses").fetchall():
+            module = module_for_business_type(row["business_type"])
+            if row["module_key"] and row["module_key"] != "custom":
+                continue
+            conn.execute(
+                """
+                update businesses
+                set module_key=?,
+                    intake_fields=coalesce(intake_fields, ?),
+                    allowed_call_types=coalesce(allowed_call_types, ?),
+                    blocked_outcomes=coalesce(blocked_outcomes, ?),
+                    supported_languages=coalesce(supported_languages, ?),
+                    compliance_profile=coalesce(compliance_profile, ?),
+                    consent_policy=coalesce(consent_policy, ?),
+                    recording_disclosure=coalesce(recording_disclosure, ?),
+                    quiet_hours=coalesce(quiet_hours, ?),
+                    integration_targets=coalesce(integration_targets, ?),
+                    qa_checks=coalesce(qa_checks, ?),
+                    workflow_version=coalesce(workflow_version, 'v1')
+                where id=?
+                """,
+                (
+                    module["key"],
+                    lines(module["intake_fields"]),
+                    lines(module["allowed_call_types"]),
+                    lines(module["blocked_outcomes"]),
+                    module["language_policy"],
+                    module["compliance_profile"],
+                    "Outbound calls require consent, opt-out handling, and client policy approval.",
+                    "Disclose recording when enabled by the client and required by region.",
+                    "09:00-18:00 local time unless the client policy says otherwise.",
+                    module["integration_targets"],
+                    comma(module["qa_checks"]),
+                    row["id"],
+                ),
+            )
         count = conn.execute("select count(*) from businesses").fetchone()[0]
         if count == 0:
             from .seed import seed_data

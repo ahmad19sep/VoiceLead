@@ -18,6 +18,7 @@ def first_match(patterns: list[str], text: str) -> str | None:
     return None
 
 def extract_name(text: str) -> str | None:
+    greetings = {"hi", "hello", "hey", "salam", "assalam", "namaste", "thanks", "thank you"}
     direct = first_match(
         [
             r"\bmy name is\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)",
@@ -35,7 +36,7 @@ def extract_name(text: str) -> str | None:
         value = line.split(":", 1)[1]
         if "," in value:
             first = clean(value.split(",", 1)[0])
-            if re.fullmatch(r"[A-Za-z ]{2,40}", first):
+            if re.fullmatch(r"[A-Za-z ]{2,40}", first) and first.lower() not in greetings:
                 return normalize_name(first)
     return None
 
@@ -129,6 +130,30 @@ def extract_timeline(text: str) -> str | None:
             return match.group(1)
     return None
 
+def detect_language(text: str) -> str:
+    lower = text.lower()
+    roman_urdu_terms = [
+        "salam",
+        "assalam",
+        "mujhe",
+        "chahiye",
+        "kal",
+        "aaj",
+        "kitna",
+        "booking karni",
+        "appointment chahiye",
+        "shukriya",
+    ]
+    hindi_terms = ["namaste", "mujhe", "chahiye", "kal", "aaj", "dhanyavaad"]
+    arabic_terms = ["مرحبا", "شكرا", "حجز", "موعد"]
+    if any(term in text for term in arabic_terms):
+        return "Arabic"
+    if any(term in lower for term in roman_urdu_terms):
+        return "Roman Urdu/Hindi"
+    if any(term in lower for term in hindi_terms):
+        return "Hindi"
+    return "English"
+
 def extract_location(text: str) -> str | None:
     return first_match(
         [
@@ -162,16 +187,24 @@ def request_type_for_business(business_type: str, text: str) -> str:
     lower = text.lower()
     if business_type == "Hotel":
         return "Room booking" if any(word in lower for word in ["book", "room", "suite", "stay"]) else "Hotel inquiry"
-    if business_type == "Clinic":
+    if business_type in {"Clinic", "Hospital", "Dentist"}:
         return "Dental appointment" if any(word in lower for word in ["appointment", "checkup", "book"]) else "Clinic inquiry"
     if business_type == "Home Services":
         return "Technician visit" if any(word in lower for word in ["repair", "technician", "stopped", "leak"]) else "Service inquiry"
     if business_type == "Restaurant":
         return "Table reservation" if any(word in lower for word in ["reserve", "reservation", "table"]) else "Restaurant inquiry"
-    if business_type == "Software Agency":
+    if business_type in {"Software Agency", "Lead Generation", "Sales"}:
         return "Project inquiry"
-    if business_type == "Law Firm":
+    if business_type in {"Law Firm", "Legal", "Insurance", "Finance"}:
         return "Legal consultation"
+    if business_type in {"Call Center", "Customer Support"}:
+        return "Support request"
+    if business_type in {"Real Estate", "Property Management"}:
+        return "Property inquiry"
+    if business_type in {"Ecommerce", "Retail", "Automotive", "Logistics"}:
+        return "Commerce inquiry"
+    if business_type in {"Education", "Recruiting", "Travel", "Government"}:
+        return "Administrative inquiry"
     return "Business inquiry"
 
 def keyword_search(knowledge: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
@@ -191,6 +224,7 @@ def analyze_call(
     knowledge: list[dict[str, Any]],
 ) -> dict[str, Any]:
     lower = transcript.lower()
+    detected_language = detect_language(transcript)
     name = extract_name(transcript)
     phone = extract_phone(transcript)
     email = extract_email(transcript)
@@ -224,14 +258,36 @@ def analyze_call(
     temp = lead_temperature(score)
 
     safety_notes = []
-    if business["business_type"] == "Clinic":
+    regulated = business["business_type"] in {"Clinic", "Hospital", "Dentist", "Law Firm", "Legal", "Insurance", "Finance"}
+    healthcare = business["business_type"] in {"Clinic", "Hospital", "Dentist"}
+    advice_request = bool(
+        re.search(
+            r"\b(should i|what medicine|diagnose|prescribe|legal advice|tax advice|financial advice|coverage advice|lawsuit)\b",
+            lower,
+        )
+    )
+    unsupported_language = bool(
+        business.get("supported_languages")
+        and detected_language.lower() not in business.get("supported_languages", "").lower()
+    )
+
+    if healthcare:
         safety_notes.append("No medical diagnosis or medicine recommendation was given.")
-    if business["business_type"] == "Law Firm":
-        safety_notes.append("No legal advice was given; the call is intake only.")
+    if business["business_type"] in {"Law Firm", "Legal", "Insurance", "Finance"}:
+        safety_notes.append("No licensed advice was given; the call is intake only.")
     if business["business_type"] == "Hotel":
         safety_notes.append("Availability is not confirmed until staff verifies the booking request.")
+    if business.get("compliance_profile"):
+        safety_notes.append(f"Compliance profile applied: {business['compliance_profile']}.")
+    if business.get("blocked_outcomes"):
+        first_block = business["blocked_outcomes"].splitlines()[0]
+        safety_notes.append(f"Guardrail: {first_block}")
+    if unsupported_language:
+        safety_notes.append(f"Detected {detected_language}, which is outside configured language policy.")
+    if advice_request and regulated:
+        safety_notes.append("Caller requested regulated advice; human handoff is required.")
 
-    sensitive = business["business_type"] in {"Clinic", "Law Firm"} and (emergency or human_request)
+    sensitive = regulated and (emergency or human_request or advice_request)
     handoff = (
         score >= int(business.get("hot_lead_threshold") or 75)
         or human_request
@@ -239,6 +295,7 @@ def analyze_call(
         or sensitive
         or high_value
         or complaint
+        or unsupported_language
         or ("pay" in lower and booking_requested)
     )
 
@@ -250,6 +307,14 @@ def analyze_call(
         "number_of_people": extract_people(transcript),
         "requested_time": extract_time(transcript),
         "knowledge_matches": [item["question"] for item in relevant_knowledge],
+        "detected_language": detected_language,
+        "module_key": business.get("module_key") or "custom",
+        "workflow_version": business.get("workflow_version") or "v1",
+        "allowed_call_types": business.get("allowed_call_types"),
+        "blocked_outcomes": business.get("blocked_outcomes"),
+        "compliance_profile": business.get("compliance_profile"),
+        "unsupported_language": unsupported_language,
+        "advice_request": advice_request,
     }
     customer = name or "Unknown caller"
     service_text = service or request_type or "business request"
@@ -280,6 +345,7 @@ def analyze_call(
         "timeline": timeline,
         "budget": budget,
         "intent": intent,
+        "detected_language": detected_language,
         "extracted_fields": fields,
         "lead_score": score,
         "lead_temperature": temp,

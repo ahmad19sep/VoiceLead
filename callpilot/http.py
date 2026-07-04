@@ -10,7 +10,15 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 from .analysis import analyze_call
 from .config import SCORE_RULES
-from .repositories import get_business, get_businesses, get_knowledge, get_lead, get_leads, get_services
+from .repositories import (
+    get_business,
+    get_businesses,
+    get_knowledge,
+    get_lead,
+    get_leads,
+    get_services,
+    production_readiness,
+)
 from .storage import db
 from .telephony import (
     create_twilio_outbound_call,
@@ -121,6 +129,9 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/api/businesses":
             with db() as conn:
                 self.send_json({"success": True, "businesses": get_businesses(conn)})
+        elif re.fullmatch(r"/api/businesses/\d+/readiness", path):
+            with db() as conn:
+                self.send_json(production_readiness(conn, int(path.split("/")[-2])))
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:

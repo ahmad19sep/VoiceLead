@@ -5,6 +5,7 @@ from typing import Any
 
 from .analysis import analyze_call
 from .config import APP_NAME, SAMPLE_TRANSCRIPTS
+from .modules import comma, lines, module_for_business_type
 from .repositories import get_business, get_knowledge, get_services
 from .utils import days_ago, now
 from .workflows import create_lead_from_analysis
@@ -78,6 +79,8 @@ def seed_data(conn: sqlite3.Connection) -> None:
         "demo_mode": "true",
         "default_hot_lead_threshold": "75",
         "default_warm_lead_threshold": "45",
+        "production_guardrails": "enabled",
+        "default_language_policy": "English, Urdu, Roman Urdu/Hindi",
     }
     for key, value in settings.items():
         conn.execute(
@@ -234,14 +237,18 @@ def seed_data(conn: sqlite3.Connection) -> None:
 
     for data in businesses:
         t = template_for_business_type(data["business_type"])
+        module = module_for_business_type(data["business_type"])
         business_id = conn.execute(
             """
             insert into businesses (
                 name, business_type, description, phone, email, website, location, working_hours,
                 agent_name, agent_greeting, agent_tone, fallback_message, handoff_name,
-                handoff_phone, handoff_email, handoff_instructions, created_at, updated_at
+                handoff_phone, handoff_email, handoff_instructions, module_key, intake_fields,
+                allowed_call_types, blocked_outcomes, supported_languages, compliance_profile,
+                consent_policy, recording_disclosure, quiet_hours, max_outbound_attempts,
+                integration_targets, qa_checks, workflow_version, created_at, updated_at
             )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data["name"],
@@ -260,6 +267,19 @@ def seed_data(conn: sqlite3.Connection) -> None:
                 data["handoff_phone"],
                 data["handoff_email"],
                 "Alert the assigned team member when handoff rules trigger.",
+                module["key"],
+                lines(module["intake_fields"]),
+                lines(module["allowed_call_types"]),
+                lines(module["blocked_outcomes"]),
+                module["language_policy"],
+                module["compliance_profile"],
+                "Outbound calls require consent, opt-out handling, and client policy approval.",
+                "Disclose recording when enabled by the client and required by region.",
+                "09:00-18:00 local time unless the client policy says otherwise.",
+                0 if data["business_type"] in {"Clinic", "Law Firm"} else 2,
+                module["integration_targets"],
+                comma(module["qa_checks"]),
+                "v1",
                 now(),
                 now(),
             ),

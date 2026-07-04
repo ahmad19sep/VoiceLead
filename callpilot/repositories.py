@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from .integrations import env_connected
 from .storage import row_dict
 
 
@@ -113,3 +114,63 @@ def get_events(conn: sqlite3.Connection, lead_id: int | None = None) -> list[dic
     else:
         rows = conn.execute("select * from agent_events order by datetime(created_at) desc limit 12").fetchall()
     return [dict(row) for row in rows]
+
+def production_readiness(conn: sqlite3.Connection, business_id: int) -> dict[str, Any]:
+    business = get_business(conn, business_id)
+    if not business:
+        return {"success": False, "error": "Business not found"}
+    services = get_services(conn, business_id)
+    knowledge = get_knowledge(conn, business_id)
+    checks = [
+        ("business_profile", bool(business.get("name") and business.get("business_type"))),
+        ("services_configured", bool(services)),
+        ("knowledge_base_configured", bool(knowledge)),
+        ("module_selected", bool(business.get("module_key"))),
+        ("allowed_call_types", bool(business.get("allowed_call_types"))),
+        ("blocked_outcomes", bool(business.get("blocked_outcomes"))),
+        ("language_policy", bool(business.get("supported_languages"))),
+        ("compliance_profile", bool(business.get("compliance_profile"))),
+        ("consent_policy", bool(business.get("consent_policy"))),
+        ("recording_disclosure", bool(business.get("recording_disclosure"))),
+        ("handoff_contact", bool(business.get("handoff_phone") or business.get("handoff_email"))),
+        ("qa_checks", bool(business.get("qa_checks"))),
+    ]
+    integration_checks = {
+        "twilio": env_connected("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
+        "openai": env_connected("OPENAI_API_KEY"),
+        "vapi": env_connected("VAPI_API_KEY"),
+        "retell": env_connected("RETELL_API_KEY"),
+        "deepgram": env_connected("DEEPGRAM_API_KEY"),
+        "elevenlabs": env_connected("ELEVENLABS_API_KEY"),
+    }
+    missing = [name for name, ok in checks if not ok]
+    configured = [name for name, ok in checks if ok]
+    connected_integrations = [name for name, ok in integration_checks.items() if ok]
+    demo_risks = [
+        "Voice/AI providers are still in demo mode until production keys and signed webhooks are configured."
+        if not connected_integrations
+        else "",
+        "Calendar/CRM/PMS/EHR/POS integrations must be connected before confirming live bookings or account actions."
+        if not business.get("integration_targets")
+        else "",
+    ]
+    demo_risks = [item for item in demo_risks if item]
+    ready = not missing and bool(connected_integrations)
+    return {
+        "success": True,
+        "business_id": business_id,
+        "business_name": business.get("name"),
+        "module_key": business.get("module_key") or "custom",
+        "workflow_version": business.get("workflow_version") or "v1",
+        "ready_for_production": ready,
+        "configured_checks": configured,
+        "missing_checks": missing,
+        "integration_status": integration_checks,
+        "demo_risks": demo_risks,
+        "next_actions": missing
+        or (
+            ["Connect at least one production voice/AI provider and enable webhook signature verification."]
+            if not connected_integrations
+            else ["Run golden call, safety, language, and tool-call QA before launch."]
+        ),
+    }

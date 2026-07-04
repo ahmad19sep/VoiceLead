@@ -101,6 +101,7 @@ def layout(title_text: str, active: str, content: str) -> str:
     .metrics {{ grid-template-columns: repeat(6, minmax(0,1fr)); margin-top: 18px; }}
     .two {{ grid-template-columns: 1.15fr .85fr; }}
     .three {{ grid-template-columns: repeat(3, minmax(0,1fr)); }}
+    .four {{ grid-template-columns: repeat(4, minmax(0,1fr)); }}
     .cards {{ grid-template-columns: repeat(3, minmax(0,1fr)); }}
     .panel {{ border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: 0 20px 70px rgba(0,0,0,.18); backdrop-filter: blur(16px); }}
     .pad {{ padding: 20px; }}
@@ -146,7 +147,7 @@ def layout(title_text: str, active: str, content: str) -> str:
       .shell {{ grid-template-columns:1fr; }}
       .sidebar {{ height:auto; position:static; }}
       .nav {{ grid-template-columns: repeat(9, max-content); overflow-x:auto; }}
-      .metrics, .two, .three, .cards, .form-grid {{ grid-template-columns:1fr; }}
+      .metrics, .two, .three, .four, .cards, .form-grid {{ grid-template-columns:1fr; }}
       main, .topbar {{ padding-left:16px; padding-right:16px; }}
     }}
   </style>

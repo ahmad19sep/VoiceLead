@@ -48,6 +48,16 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - Added an operator consent checkbox on the outbound test-call form.
 - Added audit events for consent, DNC, blocked outbound calls, seeded businesses, and Agent Builder saves.
 
+## Implemented In Provider Hardening Slice
+
+- Added Twilio webhook signature validation.
+- Added production enforcement with `APP_ENV=production` or `TWILIO_REQUIRE_SIGNATURE=true`.
+- Demo/local mode still accepts unsigned Twilio-style requests but writes audit warnings.
+- Added provider readiness checks for Twilio, OpenAI, Vapi, Retell, Deepgram, and ElevenLabs.
+- Added `/admin` Admin Health page.
+- Added `GET /api/admin/health`.
+- Added public URL, signature requirement, provider connection, and launch blocker reporting.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

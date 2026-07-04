@@ -46,6 +46,7 @@ Keep the PowerShell window open while using the app.
 - `/calls` - Call logs
 - `/notifications` - Human handoff alerts
 - `/compliance` - Workspace, consent, Do Not Call, staff handoff contacts, and audit logs
+- `/admin` - Provider readiness, production blockers, and webhook security status
 - `/settings` - Integration status and demo mode settings
 
 ## Test A Demo Call
@@ -75,6 +76,7 @@ Keep the PowerShell window open while using the app.
 - Call logs
 - Settings page with connected/missing API key status
 - Real Twilio Voice webhook endpoints
+- Twilio webhook signature validation with production enforcement
 - Outbound Twilio test-call starter
 
 ## Demo Mode
@@ -143,6 +145,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/businesses`
 - `GET /api/businesses/{id}/readiness`
 - `GET /api/compliance/summary`
+- `GET /api/admin/health`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
@@ -168,6 +171,7 @@ Example voice webhook payload:
 - `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
 - `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
+- `callpilot/security.py` - provider readiness and webhook signature validation helpers
 - `callpilot/storage.py` - SQLite connection and schema setup
 - `callpilot/repositories.py` - database read helpers
 - `callpilot/analysis.py` - mock AI call analysis, field extraction, and scoring

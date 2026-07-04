@@ -32,6 +32,7 @@ def layout(title_text: str, active: str, content: str) -> str:
         ("/calls", "Calls"),
         ("/notifications", "Notifications"),
         ("/compliance", "Compliance"),
+        ("/admin", "Admin"),
         ("/settings", "Settings"),
     ]
     nav_html = "".join(
@@ -149,7 +150,7 @@ def layout(title_text: str, active: str, content: str) -> str:
     @media (max-width: 1100px) {{
       .shell {{ grid-template-columns:1fr; }}
       .sidebar {{ height:auto; position:static; }}
-      .nav {{ grid-template-columns: repeat(11, max-content); overflow-x:auto; }}
+      .nav {{ grid-template-columns: repeat(12, max-content); overflow-x:auto; }}
       .metrics, .two, .three, .four, .cards, .form-grid {{ grid-template-columns:1fr; }}
       main, .topbar {{ padding-left:16px; padding-right:16px; }}
     }}

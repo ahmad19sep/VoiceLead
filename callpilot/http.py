@@ -11,6 +11,8 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from .analysis import analyze_call
 from .compliance import (
     add_dnc_entry,
+    audit_event,
+    default_workspace_id,
     get_audit_logs,
     get_consent_records,
     get_dnc_entries,
@@ -29,8 +31,10 @@ from .repositories import (
     get_services,
     production_readiness,
 )
+from .security import system_readiness, twilio_signature_required, validate_twilio_signature
 from .storage import db
 from .telephony import (
+    app_url,
     create_twilio_outbound_call,
     get_or_create_call_session,
     next_twilio_prompt,
@@ -41,6 +45,7 @@ from .telephony import (
 from .utils import lead_temperature, now
 from .views import (
     render_agent_builder,
+    render_admin_health,
     render_bookings,
     render_business_detail,
     render_businesses,
@@ -134,6 +139,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_notifications())
         elif path == "/compliance":
             self.send_html(render_compliance(query))
+        elif path == "/admin":
+            self.send_html(render_admin_health())
         elif path == "/settings":
             self.send_html(render_settings(query.get("saved", ["0"])[0] == "1"))
         elif path == "/api/leads":
@@ -157,6 +164,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                         "audit_logs": get_audit_logs(conn),
                     }
                 )
+        elif path == "/api/admin/health":
+            self.send_json({"success": True, **system_readiness()})
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:
@@ -338,12 +347,45 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             )
             return
         if path == "/api/twilio/voice":
-            self.handle_twilio_voice(query, self.form())
+            form = self.form()
+            if not self.validate_twilio_or_send_error(query, form):
+                return
+            self.handle_twilio_voice(query, form)
             return
         if path == "/api/twilio/gather":
-            self.handle_twilio_gather(query, self.form())
+            form = self.form()
+            if not self.validate_twilio_or_send_error(query, form):
+                return
+            self.handle_twilio_gather(query, form)
             return
         self.send_html(render_not_found(), 404)
+
+    def validate_twilio_or_send_error(self, query: dict[str, list[str]], form: dict[str, str]) -> bool:
+        signature = self.headers.get("X-Twilio-Signature")
+        url = f"{self.headers.get('X-Forwarded-Proto', app_url().split(':', 1)[0])}://{self.headers.get('Host')}{self.path}"
+        if app_url().startswith("https://"):
+            url = f"{app_url()}{self.path}"
+        ok, message = validate_twilio_signature(url, form, signature)
+        required = twilio_signature_required()
+        business_id = int((query.get("business_id") or [form.get("business_id") or "1"])[0] or 1)
+        if ok:
+            return True
+        with db() as conn:
+            business = get_business(conn, business_id)
+            workspace_id = (business or {}).get("workspace_id") or default_workspace_id(conn)
+            audit_event(
+                conn,
+                workspace_id,
+                "provider",
+                "twilio_signature_warning" if not required else "twilio_signature_rejected",
+                "twilio_webhook",
+                form.get("CallSid"),
+                {"message": message, "required": required, "path": self.path},
+            )
+        if required:
+            self.send_xml(twilio_finish_twiml("Sorry, this call could not be verified."), 403)
+            return False
+        return True
 
     def handle_twilio_voice(self, query: dict[str, list[str]], form: dict[str, str]) -> None:
         business_id = int((query.get("business_id") or [form.get("business_id") or "1"])[0] or 1)

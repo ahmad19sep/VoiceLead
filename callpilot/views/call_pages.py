@@ -4,6 +4,7 @@ from .layout import layout
 from ..config import SAMPLE_TRANSCRIPTS
 from ..integrations import env_connected
 from ..repositories import get_businesses
+from ..security import twilio_signature_required
 from ..storage import db
 from ..telephony import app_url
 from ..ui import badge, integration_badge
@@ -83,7 +84,7 @@ def render_real_calling(query: dict[str, list[str]]) -> str:
     <section class="hero">
       <h1>Real Calling</h1>
       <p>Connect a real Twilio phone number to CallPilot AI. Twilio will call these webhooks when someone phones your number, CallPilot will gather speech, analyze the call, create a lead, create a booking when needed, and trigger handoff notifications.</p>
-      <div class="actions">{status_note} {integration_badge(env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'), 'Twilio keys ready' if env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER') else 'Twilio keys missing')}</div>
+      <div class="actions">{status_note} {integration_badge(env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'), 'Twilio keys ready' if env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER') else 'Twilio keys missing')} {integration_badge(twilio_signature_required(), 'Signature required' if twilio_signature_required() else 'Signature demo-optional')}</div>
     </section>
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Success','status-active')+' '+esc(message)+'</section>' if message else ''}
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Error','status-missing')+' '+esc(error)+'</section>' if error else ''}

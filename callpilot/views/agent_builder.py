@@ -28,7 +28,11 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
     with db() as conn:
         business = get_business(conn, business_id) if business_id else None
         services = get_services(conn, business_id) if business_id else []
-        knowledge = get_knowledge(conn, business_id) if business_id else []
+        knowledge = [
+            row
+            for row in (get_knowledge(conn, business_id) if business_id else [])
+            if (row.get("source") or "agent_builder") in {"agent_builder", "seed_data"}
+        ]
     template = template_for_business_type(business["business_type"] if business else "Hotel")
     business_type_value = business["business_type"] if business else "Hotel"
     module = module_by_key((business or {}).get("module_key")) if business else module_for_business_type(business_type_value)
@@ -181,7 +185,17 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 ),
             )
             conn.execute("delete from services where business_id=?", (business_id,))
-            conn.execute("delete from knowledge_base where business_id=?", (business_id,))
+            conn.execute(
+                """
+                delete from knowledge_base
+                where business_id=? and coalesce(source, 'agent_builder') in ('agent_builder', 'seed_data')
+                """,
+                (business_id,),
+            )
+            conn.execute(
+                "delete from knowledge_documents where business_id=? and source_type in ('agent_builder', 'seed')",
+                (business_id,),
+            )
         else:
             business_id = int(
                 conn.execute(
@@ -267,12 +281,35 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 "insert into services (business_id, name, description, price_note, is_bookable, is_emergency) values (?, ?, ?, ?, ?, ?)",
                 (business_id, name, description, price, int(bookable or 1), int(emergency or 0)),
             )
-        for question, answer, category in parse_lines(form.get("faqs", ""), 3):
+        faq_rows = [
+            (question, answer, category)
+            for question, answer, category in parse_lines(form.get("faqs", ""), 3)
+            if question.lower() != "question" and question
+        ]
+        document_id = None
+        if faq_rows:
+            document_id = conn.execute(
+                """
+                insert into knowledge_documents (
+                    workspace_id, business_id, title, source_type, source, version, status,
+                    item_count, approved_by, approved_at, created_at, updated_at
+                )
+                values (?, ?, 'Agent Builder FAQs', 'agent_builder', 'agent_builder', 1, 'approved', ?, 'operator', ?, ?, ?)
+                """,
+                (workspace_id, business_id, len(faq_rows), now(), now(), now()),
+            ).lastrowid
+        for question, answer, category in faq_rows:
             if question.lower() == "question" or not question:
                 continue
             conn.execute(
-                "insert into knowledge_base (business_id, question, answer, category, tags, source) values (?, ?, ?, ?, ?, 'agent_builder')",
-                (business_id, question, answer, category, category.lower()),
+                """
+                insert into knowledge_base (
+                    business_id, document_id, question, answer, category, tags, source,
+                    version, status, approved_at, updated_at, created_at
+                )
+                values (?, ?, ?, ?, ?, ?, 'agent_builder', 1, 'approved', ?, ?, ?)
+                """,
+                (business_id, document_id, question, answer, category, category.lower(), now(), now(), now()),
             )
         create_event(conn, business_id, None, "agent_saved", "Business agent saved from Agent Builder.", {})
         audit_event(conn, workspace_id, "operator", "agent_saved", "business", business_id, {"business_type": form.get("business_type")})

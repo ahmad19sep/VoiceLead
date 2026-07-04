@@ -7,6 +7,7 @@ from .compliance import render_compliance
 from .dashboard import render_dashboard
 from .errors import render_not_found
 from .jobs import render_jobs
+from .knowledge import render_knowledge, render_knowledge_document
 from .leads import render_lead_detail, render_leads
 from .operations import render_bookings, render_calls, render_notifications
 from .qa import render_qa
@@ -25,6 +26,8 @@ __all__ = [
     "render_compliance",
     "render_dashboard",
     "render_jobs",
+    "render_knowledge",
+    "render_knowledge_document",
     "render_not_found",
     "render_lead_detail",
     "render_leads",

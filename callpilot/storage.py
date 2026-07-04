@@ -119,13 +119,38 @@ def init_db() -> None:
             create table if not exists knowledge_base (
                 id integer primary key autoincrement,
                 business_id integer not null,
+                document_id integer,
                 question text not null,
                 answer text not null,
                 category text,
                 tags text,
                 source text,
                 embedding_id text,
+                version integer default 1,
+                status text default 'approved',
+                approved_at text,
+                updated_at text default current_timestamp,
                 created_at text default current_timestamp,
+                foreign key (business_id) references businesses(id) on delete cascade,
+                foreign key (document_id) references knowledge_documents(id) on delete set null
+            );
+
+            create table if not exists knowledge_documents (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                business_id integer not null,
+                title text not null,
+                source_type text default 'manual',
+                source text,
+                checksum text,
+                version integer default 1,
+                status text default 'approved',
+                item_count integer default 0,
+                approved_by text,
+                approved_at text,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
                 foreign key (business_id) references businesses(id) on delete cascade
             );
 
@@ -399,6 +424,23 @@ def init_db() -> None:
         ensure_columns(conn, "call_sessions", {"workspace_id": "integer"})
         ensure_columns(conn, "notifications", {"workspace_id": "integer"})
         ensure_columns(conn, "agent_events", {"workspace_id": "integer"})
+        ensure_columns(
+            conn,
+            "knowledge_base",
+            {
+                "document_id": "integer",
+                "version": "integer default 1",
+                "status": "text default 'approved'",
+                "approved_at": "text",
+                "updated_at": "text",
+            },
+        )
+        conn.execute(
+            "create index if not exists idx_knowledge_base_business_status on knowledge_base(business_id, status)"
+        )
+        conn.execute(
+            "create index if not exists idx_knowledge_documents_business_status on knowledge_documents(business_id, status)"
+        )
 
         from .compliance import audit_event, default_workspace_id
         from .modules import comma, lines, module_for_business_type
@@ -483,6 +525,8 @@ def init_db() -> None:
 
             seed_data(conn)
 
+        from .knowledge import backfill_knowledge_documents
         from .qa import backfill_qa_evaluations
 
+        backfill_knowledge_documents(conn)
         backfill_qa_evaluations(conn)

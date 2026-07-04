@@ -25,6 +25,7 @@ def layout(title_text: str, active: str, content: str) -> str:
         ("/", "Dashboard"),
         ("/businesses", "Businesses"),
         ("/agent-builder", "Agent Builder"),
+        ("/knowledge", "Knowledge"),
         ("/demo-call", "Demo Call"),
         ("/real-calling", "Real Calling"),
         ("/campaigns", "Campaigns"),

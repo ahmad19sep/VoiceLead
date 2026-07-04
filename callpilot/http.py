@@ -24,6 +24,7 @@ from .compliance import (
 )
 from .config import SCORE_RULES
 from .jobs import get_jobs, run_due_jobs
+from .knowledge import ingest_knowledge_document, search_knowledge
 from .repositories import (
     get_business,
     get_businesses,
@@ -59,6 +60,8 @@ from .views import (
     render_dashboard,
     render_demo_call,
     render_jobs,
+    render_knowledge,
+    render_knowledge_document,
     render_lead_detail,
     render_leads,
     render_not_found,
@@ -130,6 +133,10 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_business_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/agent-builder":
             self.send_html(render_agent_builder(query))
+        elif path == "/knowledge":
+            self.send_html(render_knowledge(query))
+        elif re.fullmatch(r"/knowledge/\d+", path):
+            self.send_html(render_knowledge_document(int(path.rsplit("/", 1)[1])))
         elif path == "/demo-call":
             self.send_html(render_demo_call(query))
         elif path == "/real-calling":
@@ -190,6 +197,16 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/api/jobs":
             with db() as conn:
                 self.send_json({"success": True, "jobs": get_jobs(conn, query.get("status", ["all"])[0])})
+        elif path == "/api/knowledge/search":
+            business_id = int(query.get("business_id", ["0"])[0] or 0)
+            with db() as conn:
+                self.send_json(
+                    {
+                        "success": True,
+                        "business_id": business_id,
+                        "results": search_knowledge(conn, business_id, query.get("q", [""])[0]) if business_id else [],
+                    }
+                )
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:
@@ -269,6 +286,24 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             with db() as conn:
                 results = run_due_jobs(conn)
             self.redirect(f"/jobs?ran={len(results)}")
+            return
+        if path == "/knowledge/ingest":
+            form = self.form()
+            business_id = int(form.get("business_id") or 0)
+            with db() as conn:
+                result = ingest_knowledge_document(
+                    conn,
+                    business_id,
+                    form.get("title") or "Knowledge document",
+                    form.get("source_type") or "manual",
+                    form.get("source") or "",
+                    form.get("content") or "",
+                )
+            if result.get("success"):
+                message = f"{result['items']} items added"
+            else:
+                message = str(result.get("error") or "Unable to add knowledge")
+            self.redirect(f"/knowledge?business_id={business_id}&{urlencode({'saved': message})}")
             return
         if path == "/compliance/consent":
             form = self.form()

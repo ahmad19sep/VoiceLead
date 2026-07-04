@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .errors import render_not_found
 from .layout import layout
+from ..knowledge import knowledge_stats
 from ..repositories import get_business, get_businesses, get_knowledge, get_leads, get_services
 from ..stats import stats
 from ..storage import db
@@ -49,6 +50,7 @@ def render_business_detail(business_id: int) -> str:
             return render_not_found()
         services = get_services(conn, business_id)
         knowledge = get_knowledge(conn, business_id)
+        k_stats = knowledge_stats(conn, business_id)
         leads = get_leads(conn, {"business_id": str(business_id)})[:5]
     production_items = [
         ("Module", title(business.get("module_key") or "custom")),
@@ -59,6 +61,7 @@ def render_business_detail(business_id: int) -> str:
         ("Quiet Hours", business.get("quiet_hours") or "Not configured"),
         ("Max Attempts", business.get("max_outbound_attempts") if business.get("max_outbound_attempts") is not None else "Not configured"),
         ("Integrations", business.get("integration_targets") or "Not configured"),
+        ("Knowledge Docs", k_stats["documents"]),
     ]
     production_html = "".join(
         f'<div class="mini"><span>{esc(label)}</span><strong>{esc(value)}</strong></div>' for label, value in production_items
@@ -90,6 +93,7 @@ def render_business_detail(business_id: int) -> str:
       <div class="actions">
         <a class="btn primary" href="/demo-call?business_id={business_id}">Test Call</a>
         <a class="btn" href="/agent-builder?business_id={business_id}">Edit Agent</a>
+        <a class="btn" href="/knowledge?business_id={business_id}">Manage Knowledge</a>
         <a class="btn" href="/api/businesses/{business_id}/readiness">Readiness JSON</a>
       </div>
     </section>

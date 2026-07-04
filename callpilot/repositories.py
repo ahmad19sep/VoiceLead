@@ -25,7 +25,14 @@ def get_services(conn: sqlite3.Connection, business_id: int) -> list[dict[str, A
     return [dict(row) for row in rows]
 
 def get_knowledge(conn: sqlite3.Connection, business_id: int) -> list[dict[str, Any]]:
-    rows = conn.execute("select * from knowledge_base where business_id = ? order by id", (business_id,)).fetchall()
+    rows = conn.execute(
+        """
+        select * from knowledge_base
+        where business_id = ? and coalesce(status, 'approved') = 'approved'
+        order by id
+        """,
+        (business_id,),
+    ).fetchall()
     return [dict(row) for row in rows]
 
 def get_leads(conn: sqlite3.Connection, filters: dict[str, str] | None = None) -> list[dict[str, Any]]:

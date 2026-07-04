@@ -39,6 +39,7 @@ Keep the PowerShell window open while using the app.
 - `/` - Dashboard
 - `/businesses` - Business agents
 - `/agent-builder` - Create or edit an AI phone agent
+- `/knowledge` - Versioned business knowledge ingest, approval, and search
 - `/demo-call` - Test call transcripts
 - `/real-calling` - Connect a real Twilio phone number
 - `/campaigns` - Prepare outbound campaigns with consent/DNC suppression
@@ -70,6 +71,8 @@ Keep the PowerShell window open while using the app.
 - Per-business language, compliance, consent, recording, QA, and outbound policy settings
 - Default workspace foundation with staff contacts, consent records, Do Not Call entries, and audit logs
 - Services and FAQs per business
+- Versioned knowledge documents with manual, document, URL, and policy ingest
+- Approved knowledge search used by call analysis and agent review
 - Mock AI call analysis
 - Language detection and regulated-advice guardrails in mock analysis
 - Universal lead scoring
@@ -155,6 +158,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/qa/evaluations`
 - `GET /api/campaigns`
 - `GET /api/jobs`
+- `GET /api/knowledge/search?business_id=1&q=refund`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`

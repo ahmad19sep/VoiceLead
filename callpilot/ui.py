@@ -24,6 +24,7 @@ def layout(title_text: str, active: str, content: str) -> str:
     nav = [
         ("/", "Dashboard"),
         ("/businesses", "Businesses"),
+        ("/modules", "Modules"),
         ("/agent-builder", "Agent Builder"),
         ("/knowledge", "Knowledge"),
         ("/demo-call", "Demo Call"),

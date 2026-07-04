@@ -38,6 +38,7 @@ Keep the PowerShell window open while using the app.
 
 - `/` - Dashboard
 - `/businesses` - Business agents
+- `/modules` - PDF-pack industry module registry
 - `/agent-builder` - Create or edit an AI phone agent
 - `/knowledge` - Versioned business knowledge ingest, approval, and search
 - `/demo-call` - Test call transcripts
@@ -153,6 +154,8 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 
 - `GET /api/businesses`
 - `GET /api/businesses/{id}/readiness`
+- `GET /api/modules`
+- `GET /api/modules/{module_key}`
 - `GET /api/compliance/summary`
 - `GET /api/admin/health`
 - `GET /api/qa/evaluations`
@@ -196,6 +199,8 @@ Example voice webhook payload:
 - `callpilot/http.py` - HTTP request handler and route dispatch
 - `callpilot/server.py` - local server startup
 - `callpilot/views/` - dashboard, CRM, agent builder, calling, and settings pages
+- `docs/REPOSITORY_STATE.md` - current architecture map and production gaps
+- `docs/PRODUCT_DEFINITION.md` - product rules and forbidden fake-success behavior
 - `callpilot.db` - SQLite database, created automatically
 - `.env.example` - future API key template
 - `README.md` - these instructions

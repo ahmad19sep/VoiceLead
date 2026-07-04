@@ -9,6 +9,7 @@ from .errors import render_not_found
 from .jobs import render_jobs
 from .knowledge import render_knowledge, render_knowledge_document
 from .leads import render_lead_detail, render_leads
+from .modules import render_module_detail, render_modules
 from .operations import render_bookings, render_calls, render_notifications
 from .qa import render_qa
 from .settings import render_settings
@@ -31,6 +32,8 @@ __all__ = [
     "render_not_found",
     "render_lead_detail",
     "render_leads",
+    "render_module_detail",
+    "render_modules",
     "render_bookings",
     "render_calls",
     "render_notifications",

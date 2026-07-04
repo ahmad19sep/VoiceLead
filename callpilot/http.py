@@ -25,6 +25,7 @@ from .compliance import (
 from .config import SCORE_RULES
 from .jobs import get_jobs, run_due_jobs
 from .knowledge import ingest_knowledge_document, search_knowledge
+from .modules import INDUSTRY_MODULES, module_by_key
 from .repositories import (
     get_business,
     get_businesses,
@@ -64,6 +65,8 @@ from .views import (
     render_knowledge_document,
     render_lead_detail,
     render_leads,
+    render_module_detail,
+    render_modules,
     render_not_found,
     render_notifications,
     render_qa,
@@ -131,6 +134,10 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_businesses())
         elif re.fullmatch(r"/businesses/\d+", path):
             self.send_html(render_business_detail(int(path.rsplit("/", 1)[1])))
+        elif path == "/modules":
+            self.send_html(render_modules())
+        elif re.fullmatch(r"/modules/[a-z0-9_]+", path):
+            self.send_html(render_module_detail(path.rsplit("/", 1)[1]))
         elif path == "/agent-builder":
             self.send_html(render_agent_builder(query))
         elif path == "/knowledge":
@@ -174,6 +181,19 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif re.fullmatch(r"/api/businesses/\d+/readiness", path):
             with db() as conn:
                 self.send_json(production_readiness(conn, int(path.split("/")[-2])))
+        elif path == "/api/modules":
+            self.send_json(
+                {
+                    "success": True,
+                    "modules": [{"key": key, **module} for key, module in INDUSTRY_MODULES.items()],
+                }
+            )
+        elif re.fullmatch(r"/api/modules/[a-z0-9_]+", path):
+            key = path.rsplit("/", 1)[1]
+            if key not in INDUSTRY_MODULES:
+                self.send_json({"success": False, "error": "Module not found"}, 404)
+                return
+            self.send_json({"success": True, "module": module_by_key(key)})
         elif path == "/api/compliance/summary":
             with db() as conn:
                 self.send_json(

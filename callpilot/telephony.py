@@ -43,12 +43,14 @@ def get_or_create_call_session(
     row = conn.execute("select * from call_sessions where call_sid = ?", (call_sid,)).fetchone()
     if row:
         return dict(row)
+    business = conn.execute("select workspace_id from businesses where id = ?", (business_id,)).fetchone()
+    workspace_id = business["workspace_id"] if business else None
     cur = conn.execute(
         """
-        insert into call_sessions (business_id, call_sid, caller_phone, transcript, turn_count, status, created_at, updated_at)
-        values (?, ?, ?, '', 0, 'active', ?, ?)
+        insert into call_sessions (workspace_id, business_id, call_sid, caller_phone, transcript, turn_count, status, created_at, updated_at)
+        values (?, ?, ?, ?, '', 0, 'active', ?, ?)
         """,
-        (business_id, call_sid, caller_phone, now(), now()),
+        (workspace_id, business_id, call_sid, caller_phone, now(), now()),
     )
     return dict(conn.execute("select * from call_sessions where id = ?", (cur.lastrowid,)).fetchone())
 

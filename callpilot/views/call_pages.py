@@ -109,8 +109,14 @@ def render_real_calling(query: dict[str, list[str]]) -> str:
         <form method="post" action="/real-calling/outbound" class="grid" style="margin-top:14px;">
           <label>Business<select name="business_id">{options}</select></label>
           <label>Your phone number<input name="to_number" placeholder="+923001234567"></label>
+          <label class="checkline"><input type="checkbox" name="consent_confirmed" value="yes"> I have consent to place this outbound test call.</label>
           <button class="btn primary" type="submit">Start Real Test Call</button>
         </form>
+        <div class="mini" style="margin-top:12px;">
+          <span>Outbound Policy</span>
+          <strong>Consent, DNC, and max-attempt checks run before Twilio starts.</strong>
+          <p class="muted">Use Compliance Center to record consent or add opt-outs. Businesses with max outbound attempts set to 0 cannot start outbound calls.</p>
+        </div>
       </div>
     </section>
     <section class="panel pad" style="margin-top:18px;">

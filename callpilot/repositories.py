@@ -122,6 +122,7 @@ def production_readiness(conn: sqlite3.Connection, business_id: int) -> dict[str
     services = get_services(conn, business_id)
     knowledge = get_knowledge(conn, business_id)
     checks = [
+        ("workspace_assigned", bool(business.get("workspace_id"))),
         ("business_profile", bool(business.get("name") and business.get("business_type"))),
         ("services_configured", bool(services)),
         ("knowledge_base_configured", bool(knowledge)),
@@ -135,6 +136,20 @@ def production_readiness(conn: sqlite3.Connection, business_id: int) -> dict[str
         ("handoff_contact", bool(business.get("handoff_phone") or business.get("handoff_email"))),
         ("qa_checks", bool(business.get("qa_checks"))),
     ]
+    staff_count = conn.execute(
+        "select count(*) from staff_contacts where business_id = ? and receives_handoff = 1",
+        (business_id,),
+    ).fetchone()[0]
+    consent_count = conn.execute(
+        "select count(*) from consent_records where business_id = ? and status = 'active'",
+        (business_id,),
+    ).fetchone()[0]
+    dnc_count = conn.execute(
+        "select count(*) from do_not_call where workspace_id = ? and status = 'active'",
+        (business.get("workspace_id"),),
+    ).fetchone()[0]
+    if not staff_count:
+        checks.append(("staff_handoff_contact", False))
     integration_checks = {
         "twilio": env_connected("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
         "openai": env_connected("OPENAI_API_KEY"),
@@ -166,6 +181,12 @@ def production_readiness(conn: sqlite3.Connection, business_id: int) -> dict[str
         "configured_checks": configured,
         "missing_checks": missing,
         "integration_status": integration_checks,
+        "workspace_id": business.get("workspace_id"),
+        "compliance_counts": {
+            "staff_handoff_contacts": staff_count,
+            "active_consent_records": consent_count,
+            "workspace_dnc_entries": dnc_count,
+        },
         "demo_risks": demo_risks,
         "next_actions": missing
         or (

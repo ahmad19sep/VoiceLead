@@ -27,6 +27,7 @@ def init_db() -> None:
             """
             create table if not exists businesses (
                 id integer primary key autoincrement,
+                workspace_id integer,
                 name text not null,
                 business_type text not null,
                 description text,
@@ -60,7 +61,47 @@ def init_db() -> None:
                 handoff_instructions text,
                 status text default 'active',
                 created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade
+            );
+
+            create table if not exists workspaces (
+                id integer primary key autoincrement,
+                name text not null,
+                slug text unique not null,
+                plan text default 'demo',
+                status text default 'active',
+                timezone text default 'Asia/Karachi',
+                created_at text default current_timestamp,
                 updated_at text default current_timestamp
+            );
+
+            create table if not exists workspace_users (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                name text not null,
+                email text not null,
+                role text not null default 'owner',
+                status text default 'active',
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade
+            );
+
+            create table if not exists staff_contacts (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer,
+                name text not null,
+                role text,
+                phone text,
+                email text,
+                escalation_level integer default 1,
+                receives_handoff integer default 1,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
             );
 
             create table if not exists services (
@@ -204,12 +245,54 @@ def init_db() -> None:
                 created_at text default current_timestamp,
                 updated_at text default current_timestamp
             );
+
+            create table if not exists consent_records (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer,
+                customer_phone text not null,
+                customer_email text,
+                consent_type text not null,
+                source text,
+                proof text,
+                status text default 'active',
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists do_not_call (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                customer_phone text not null,
+                reason text,
+                source text,
+                status text default 'active',
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                unique(workspace_id, customer_phone),
+                foreign key (workspace_id) references workspaces(id) on delete cascade
+            );
+
+            create table if not exists audit_logs (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                actor_type text not null,
+                action text not null,
+                resource_type text not null,
+                resource_id text,
+                metadata text,
+                created_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade
+            );
             """
         )
         ensure_columns(
             conn,
             "businesses",
             {
+                "workspace_id": "integer",
                 "module_key": "text default 'custom'",
                 "intake_fields": "text",
                 "allowed_call_types": "text",
@@ -225,7 +308,29 @@ def init_db() -> None:
                 "workflow_version": "text default 'v1'",
             },
         )
+        ensure_columns(conn, "leads", {"workspace_id": "integer"})
+        ensure_columns(conn, "bookings", {"workspace_id": "integer"})
+        ensure_columns(conn, "call_logs", {"workspace_id": "integer"})
+        ensure_columns(conn, "call_sessions", {"workspace_id": "integer"})
+        ensure_columns(conn, "notifications", {"workspace_id": "integer"})
+        ensure_columns(conn, "agent_events", {"workspace_id": "integer"})
+
+        from .compliance import audit_event, default_workspace_id
         from .modules import comma, lines, module_for_business_type
+
+        workspace_id = default_workspace_id(conn)
+        conn.execute("update businesses set workspace_id = ? where workspace_id is null", (workspace_id,))
+        for table in ["leads", "bookings", "call_logs", "call_sessions", "notifications", "agent_events"]:
+            conn.execute(
+                f"""
+                update {table}
+                set workspace_id = (
+                    select businesses.workspace_id from businesses where businesses.id = {table}.business_id
+                )
+                where workspace_id is null
+                """
+            )
+            conn.execute(f"update {table} set workspace_id = ? where workspace_id is null", (workspace_id,))
 
         for row in conn.execute("select id, business_type, module_key from businesses").fetchall():
             module = module_for_business_type(row["business_type"])
@@ -263,6 +368,30 @@ def init_db() -> None:
                     row["id"],
                 ),
             )
+        staff_count = conn.execute("select count(*) from staff_contacts").fetchone()[0]
+        if staff_count == 0:
+            for business in conn.execute(
+                "select id, workspace_id, handoff_name, handoff_phone, handoff_email from businesses"
+            ).fetchall():
+                if not (business["handoff_name"] or business["handoff_phone"] or business["handoff_email"]):
+                    continue
+                conn.execute(
+                    """
+                    insert into staff_contacts (
+                        workspace_id, business_id, name, role, phone, email, escalation_level,
+                        receives_handoff, created_at, updated_at
+                    )
+                    values (?, ?, ?, 'Handoff contact', ?, ?, 1, 1, current_timestamp, current_timestamp)
+                    """,
+                    (
+                        business["workspace_id"] or workspace_id,
+                        business["id"],
+                        business["handoff_name"] or "Handoff Contact",
+                        business["handoff_phone"],
+                        business["handoff_email"],
+                    ),
+                )
+            audit_event(conn, workspace_id, "system", "workspace_backfilled", "workspace", workspace_id, {})
         count = conn.execute("select count(*) from businesses").fetchone()[0]
         if count == 0:
             from .seed import seed_data

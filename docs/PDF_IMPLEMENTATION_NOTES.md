@@ -33,6 +33,21 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
   - regulated advice-request flag
 - Added stronger handoff behavior for regulated advice, unsupported language, emergencies, complaints, and high-value signals.
 
+## Implemented In Next Slice
+
+- Added default workspace foundation for the SaaS multi-tenant roadmap.
+- Added workspace-aware schema fields for businesses, leads, bookings, call logs, call sessions, notifications, and agent events.
+- Added staff handoff contacts, consent records, Do Not Call entries, and audit logs.
+- Added `/compliance` Compliance Center page.
+- Added `GET /api/compliance/summary`.
+- Added outbound policy enforcement before Twilio calls:
+  - phone is required
+  - DNC blocks calls
+  - max outbound attempts of `0` disables outbound
+  - active outbound consent is required
+- Added an operator consent checkbox on the outbound test-call form.
+- Added audit events for consent, DNC, blocked outbound calls, seeded businesses, and Agent Builder saves.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

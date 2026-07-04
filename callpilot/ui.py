@@ -31,6 +31,7 @@ def layout(title_text: str, active: str, content: str) -> str:
         ("/bookings", "Bookings"),
         ("/calls", "Calls"),
         ("/notifications", "Notifications"),
+        ("/compliance", "Compliance"),
         ("/settings", "Settings"),
     ]
     nav_html = "".join(
@@ -135,6 +136,8 @@ def layout(title_text: str, active: str, content: str) -> str:
     tr:hover td {{ background: rgba(255,255,255,.045); }}
     .table-wrap {{ overflow-x:auto; }}
     input, textarea, select {{ width:100%; border:1px solid var(--line); border-radius:11px; padding:11px 12px; background:rgba(2,6,23,.46); color:white; font:inherit; }}
+    input[type="checkbox"] {{ width:auto; }}
+    .checkline {{ display:flex; grid-template-columns:none; align-items:center; gap:10px; font-weight:800; }}
     option {{ color:#111827; }}
     textarea {{ min-height: 150px; resize:vertical; line-height:1.55; }}
     label {{ display:grid; gap:7px; font-size:14px; font-weight:800; }}
@@ -146,7 +149,7 @@ def layout(title_text: str, active: str, content: str) -> str:
     @media (max-width: 1100px) {{
       .shell {{ grid-template-columns:1fr; }}
       .sidebar {{ height:auto; position:static; }}
-      .nav {{ grid-template-columns: repeat(9, max-content); overflow-x:auto; }}
+      .nav {{ grid-template-columns: repeat(11, max-content); overflow-x:auto; }}
       .metrics, .two, .three, .four, .cards, .form-grid {{ grid-template-columns:1fr; }}
       main, .topbar {{ padding-left:16px; padding-right:16px; }}
     }}

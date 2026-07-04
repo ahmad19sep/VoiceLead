@@ -16,12 +16,16 @@ def create_event(
     metadata: dict[str, Any] | None = None,
     created_at: str | None = None,
 ) -> None:
+    workspace_id = None
+    if business_id:
+        row = conn.execute("select workspace_id from businesses where id = ?", (business_id,)).fetchone()
+        workspace_id = row["workspace_id"] if row else None
     conn.execute(
         """
-        insert into agent_events (business_id, lead_id, event_type, description, metadata, created_at)
-        values (?, ?, ?, ?, ?, ?)
+        insert into agent_events (workspace_id, business_id, lead_id, event_type, description, metadata, created_at)
+        values (?, ?, ?, ?, ?, ?, ?)
         """,
-        (business_id, lead_id, event_type, description, as_json(metadata or {}), created_at or now()),
+        (workspace_id, business_id, lead_id, event_type, description, as_json(metadata or {}), created_at or now()),
     )
 
 def create_notification(conn: sqlite3.Connection, business_id: int, lead_id: int, analysis: dict[str, Any]) -> None:
@@ -47,25 +51,27 @@ def create_notification(conn: sqlite3.Connection, business_id: int, lead_id: int
     conn.execute(
         """
         insert into notifications (
-            business_id, lead_id, notification_type, channel, recipient, subject, message, status, created_at
+            workspace_id, business_id, lead_id, notification_type, channel, recipient, subject, message, status, created_at
         )
-        values (?, ?, 'hot_lead_alert', 'dashboard', ?, ?, ?, 'sent', ?)
+        values (?, ?, ?, 'hot_lead_alert', 'dashboard', ?, ?, ?, 'sent', ?)
         """,
-        (business_id, lead_id, business.get("handoff_email"), subject, message, now()),
+        (business.get("workspace_id"), business_id, lead_id, business.get("handoff_email"), subject, message, now()),
     )
     create_event(conn, business_id, lead_id, "notification_created", "Hot lead notification created.", {})
 
 def create_booking(conn: sqlite3.Connection, business_id: int, lead_id: int, analysis: dict[str, Any]) -> None:
     fields = analysis.get("extracted_fields") or {}
+    business = get_business(conn, business_id)
     conn.execute(
         """
         insert into bookings (
-            business_id, lead_id, customer_name, customer_phone, customer_email, booking_type,
+            workspace_id, business_id, lead_id, customer_name, customer_phone, customer_email, booking_type,
             requested_date, requested_time, number_of_people, service_requested, notes, status, created_at, updated_at
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?)
         """,
         (
+            business.get("workspace_id") if business else None,
             business_id,
             lead_id,
             analysis.get("customer_name"),
@@ -95,17 +101,20 @@ def create_lead_from_analysis(
     created_at: str | None = None,
 ) -> dict[str, Any]:
     created = created_at or now()
+    business = get_business(conn, business_id)
+    workspace_id = business.get("workspace_id") if business else None
     cur = conn.execute(
         """
         insert into leads (
-            business_id, customer_name, customer_phone, customer_email, request_type, service_requested,
+            workspace_id, business_id, customer_name, customer_phone, customer_email, request_type, service_requested,
             industry, location, urgency, timeline, budget, intent, extracted_fields,
             lead_score, lead_temperature, status, ai_summary, recommended_action, transcript,
             score_breakdown, safety_notes, handoff_triggered, booking_requested, created_at, updated_at
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            workspace_id,
             business_id,
             analysis.get("customer_name"),
             analysis.get("customer_phone") or caller_phone,
@@ -136,12 +145,13 @@ def create_lead_from_analysis(
     conn.execute(
         """
         insert into call_logs (
-            business_id, lead_id, provider, call_id, caller_phone, transcript, recording_url,
+            workspace_id, business_id, lead_id, provider, call_id, caller_phone, transcript, recording_url,
             duration_seconds, call_status, analysis_json, created_at
         )
-        values (?, ?, ?, ?, ?, ?, ?, ?, 'analyzed', ?, ?)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'analyzed', ?, ?)
         """,
         (
+            workspace_id,
             business_id,
             lead_id,
             provider,

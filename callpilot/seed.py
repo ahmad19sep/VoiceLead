@@ -4,6 +4,7 @@ import sqlite3
 from typing import Any
 
 from .analysis import analyze_call
+from .compliance import audit_event, default_workspace_id
 from .config import APP_NAME, SAMPLE_TRANSCRIPTS
 from .modules import comma, lines, module_for_business_type
 from .repositories import get_business, get_knowledge, get_services
@@ -73,6 +74,7 @@ def template_for_business_type(business_type: str) -> dict[str, Any]:
     return templates.get(business_type, templates["Custom"])
 
 def seed_data(conn: sqlite3.Connection) -> None:
+    workspace_id = default_workspace_id(conn)
     settings = {
         "app_name": APP_NAME,
         "theme": "dark premium",
@@ -241,16 +243,17 @@ def seed_data(conn: sqlite3.Connection) -> None:
         business_id = conn.execute(
             """
             insert into businesses (
-                name, business_type, description, phone, email, website, location, working_hours,
+                workspace_id, name, business_type, description, phone, email, website, location, working_hours,
                 agent_name, agent_greeting, agent_tone, fallback_message, handoff_name,
                 handoff_phone, handoff_email, handoff_instructions, module_key, intake_fields,
                 allowed_call_types, blocked_outcomes, supported_languages, compliance_profile,
                 consent_policy, recording_disclosure, quiet_hours, max_outbound_attempts,
                 integration_targets, qa_checks, workflow_version, created_at, updated_at
             )
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                workspace_id,
                 data["name"],
                 data["business_type"],
                 t["description"],
@@ -284,6 +287,25 @@ def seed_data(conn: sqlite3.Connection) -> None:
                 now(),
             ),
         ).lastrowid
+        conn.execute(
+            """
+            insert into staff_contacts (
+                workspace_id, business_id, name, role, phone, email, escalation_level,
+                receives_handoff, created_at, updated_at
+            )
+            values (?, ?, ?, 'Handoff contact', ?, ?, 1, 1, ?, ?)
+            """,
+            (
+                workspace_id,
+                business_id,
+                data["handoff_name"],
+                data["handoff_phone"],
+                data["handoff_email"],
+                now(),
+                now(),
+            ),
+        )
+        audit_event(conn, workspace_id, "system", "seed_business_created", "business", business_id, {"type": data["business_type"]})
 
         for service in data["services"]:
             conn.execute(

@@ -9,6 +9,16 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from .analysis import analyze_call
+from .compliance import (
+    add_dnc_entry,
+    get_audit_logs,
+    get_consent_records,
+    get_dnc_entries,
+    get_staff_contacts,
+    get_workspace,
+    outbound_allowed,
+    record_consent,
+)
 from .config import SCORE_RULES
 from .repositories import (
     get_business,
@@ -35,6 +45,7 @@ from .views import (
     render_business_detail,
     render_businesses,
     render_calls,
+    render_compliance,
     render_dashboard,
     render_demo_call,
     render_lead_detail,
@@ -121,6 +132,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_calls())
         elif path == "/notifications":
             self.send_html(render_notifications())
+        elif path == "/compliance":
+            self.send_html(render_compliance(query))
         elif path == "/settings":
             self.send_html(render_settings(query.get("saved", ["0"])[0] == "1"))
         elif path == "/api/leads":
@@ -132,6 +145,18 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif re.fullmatch(r"/api/businesses/\d+/readiness", path):
             with db() as conn:
                 self.send_json(production_readiness(conn, int(path.split("/")[-2])))
+        elif path == "/api/compliance/summary":
+            with db() as conn:
+                self.send_json(
+                    {
+                        "success": True,
+                        "workspace": get_workspace(conn),
+                        "staff_contacts": get_staff_contacts(conn),
+                        "consent_records": get_consent_records(conn),
+                        "do_not_call": get_dnc_entries(conn),
+                        "audit_logs": get_audit_logs(conn),
+                    }
+                )
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:
@@ -167,9 +192,48 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         if path == "/real-calling/outbound":
             form = self.form()
             business_id = int(form.get("business_id") or 1)
-            ok, msg = create_twilio_outbound_call(form.get("to_number", ""), business_id)
+            to_number = form.get("to_number", "")
+            with db() as conn:
+                business = get_business(conn, business_id)
+                if not business:
+                    self.redirect("/real-calling?error=business+not+found")
+                    return
+                if form.get("consent_confirmed") == "yes":
+                    record_consent(
+                        conn,
+                        business_id,
+                        to_number,
+                        "outbound_call",
+                        "real_calling_form",
+                        "Operator checked consent confirmation before outbound test call.",
+                    )
+                allowed, policy_msg = outbound_allowed(conn, business, to_number)
+            if allowed:
+                ok, msg = create_twilio_outbound_call(to_number, business_id)
+            else:
+                ok, msg = False, policy_msg
             param = "message" if ok else "error"
             self.redirect(f"/real-calling?business_id={business_id}&{param}={urlencode({'x': msg})[2:]}")
+            return
+        if path == "/compliance/consent":
+            form = self.form()
+            business_id = int(form.get("business_id") or 1)
+            with db() as conn:
+                record_consent(
+                    conn,
+                    business_id,
+                    form.get("phone", ""),
+                    form.get("consent_type") or "outbound_call",
+                    form.get("source") or "operator",
+                    form.get("proof") or "Operator recorded consent.",
+                )
+            self.redirect("/compliance?saved=consent+recorded")
+            return
+        if path == "/compliance/dnc":
+            form = self.form()
+            with db() as conn:
+                add_dnc_entry(conn, form.get("phone", ""), form.get("reason", ""), form.get("source") or "operator")
+            self.redirect("/compliance?saved=do+not+call+updated")
             return
         status_match = re.fullmatch(r"/leads/(\d+)/status", path)
         if status_match:

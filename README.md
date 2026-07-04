@@ -45,6 +45,7 @@ Keep the PowerShell window open while using the app.
 - `/bookings` - Booking requests
 - `/calls` - Call logs
 - `/notifications` - Human handoff alerts
+- `/compliance` - Workspace, consent, Do Not Call, staff handoff contacts, and audit logs
 - `/settings` - Integration status and demo mode settings
 
 ## Test A Demo Call
@@ -63,6 +64,7 @@ Keep the PowerShell window open while using the app.
 - Agent Builder
 - PDF-pack aligned industry module configuration
 - Per-business language, compliance, consent, recording, QA, and outbound policy settings
+- Default workspace foundation with staff contacts, consent records, Do Not Call entries, and audit logs
 - Services and FAQs per business
 - Mock AI call analysis
 - Language detection and regulated-advice guardrails in mock analysis
@@ -140,6 +142,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 
 - `GET /api/businesses`
 - `GET /api/businesses/{id}/readiness`
+- `GET /api/compliance/summary`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
@@ -163,6 +166,7 @@ Example voice webhook payload:
 
 - `app.py` - small app entry point
 - `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
+- `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
 - `callpilot/storage.py` - SQLite connection and schema setup
 - `callpilot/repositories.py` - database read helpers

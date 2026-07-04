@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..compliance import audit_event, default_workspace_id
 from .layout import layout
 from ..config import BUSINESS_TYPES, TONE_OPTIONS
 from ..modules import comma, lines, module_by_key, module_for_business_type, module_options
@@ -128,7 +129,11 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
 
 def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
     with db() as conn:
+        workspace_id = default_workspace_id(conn)
         if business_id:
+            row = conn.execute("select workspace_id from businesses where id = ?", (business_id,)).fetchone()
+            if row and row["workspace_id"]:
+                workspace_id = int(row["workspace_id"])
             conn.execute(
                 """
                 update businesses set name=?, business_type=?, description=?, phone=?, email=?, website=?, location=?,
@@ -182,16 +187,17 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 conn.execute(
                     """
                     insert into businesses (
-                        name, business_type, description, phone, email, website, location, working_hours,
+                        workspace_id, name, business_type, description, phone, email, website, location, working_hours,
                         agent_name, agent_greeting, agent_tone, fallback_message, hot_lead_threshold,
                         warm_lead_threshold, module_key, intake_fields, allowed_call_types, blocked_outcomes,
                         supported_languages, compliance_profile, consent_policy, recording_disclosure, quiet_hours,
                         max_outbound_attempts, integration_targets, qa_checks, workflow_version, handoff_name,
                         handoff_phone, handoff_email, handoff_instructions, status, created_at, updated_at
                     )
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
                     """,
                     (
+                        workspace_id,
                         form.get("name"),
                         form.get("business_type"),
                         form.get("description"),
@@ -228,6 +234,32 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                     ),
                 ).lastrowid
             )
+        conn.execute(
+            """
+            delete from staff_contacts
+            where business_id = ? and role = 'Handoff contact'
+            """,
+            (business_id,),
+        )
+        if form.get("handoff_name") or form.get("handoff_phone") or form.get("handoff_email"):
+            conn.execute(
+                """
+                insert into staff_contacts (
+                    workspace_id, business_id, name, role, phone, email, escalation_level,
+                    receives_handoff, created_at, updated_at
+                )
+                values (?, ?, ?, 'Handoff contact', ?, ?, 1, 1, ?, ?)
+                """,
+                (
+                    workspace_id,
+                    business_id,
+                    form.get("handoff_name") or "Handoff Contact",
+                    form.get("handoff_phone"),
+                    form.get("handoff_email"),
+                    now(),
+                    now(),
+                ),
+            )
         for name, description, price, bookable, emergency in parse_lines(form.get("services", ""), 5):
             if name.lower() == "service name" or not name:
                 continue
@@ -243,4 +275,5 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 (business_id, question, answer, category, category.lower()),
             )
         create_event(conn, business_id, None, "agent_saved", "Business agent saved from Agent Builder.", {})
+        audit_event(conn, workspace_id, "operator", "agent_saved", "business", business_id, {"business_type": form.get("business_type")})
         return business_id

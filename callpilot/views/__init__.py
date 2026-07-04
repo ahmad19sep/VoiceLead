@@ -6,6 +6,7 @@ from .campaigns import render_campaign_detail, render_campaigns
 from .compliance import render_compliance
 from .dashboard import render_dashboard
 from .errors import render_not_found
+from .jobs import render_jobs
 from .leads import render_lead_detail, render_leads
 from .operations import render_bookings, render_calls, render_notifications
 from .qa import render_qa
@@ -23,6 +24,7 @@ __all__ = [
     "render_real_calling",
     "render_compliance",
     "render_dashboard",
+    "render_jobs",
     "render_not_found",
     "render_lead_detail",
     "render_leads",

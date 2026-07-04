@@ -28,6 +28,7 @@ def layout(title_text: str, active: str, content: str) -> str:
         ("/demo-call", "Demo Call"),
         ("/real-calling", "Real Calling"),
         ("/campaigns", "Campaigns"),
+        ("/jobs", "Jobs"),
         ("/leads", "Leads"),
         ("/bookings", "Bookings"),
         ("/calls", "Calls"),
@@ -123,10 +124,10 @@ def layout(title_text: str, active: str, content: str) -> str:
     .temp-hot {{ background: rgba(251,113,133,.16); color: #fecdd3; border-color: rgba(251,113,133,.36); }}
     .temp-warm {{ background: rgba(251,191,36,.15); color: #fde68a; border-color: rgba(251,191,36,.36); }}
     .temp-cold {{ background: rgba(148,163,184,.16); color: #cbd5e1; border-color: rgba(148,163,184,.36); }}
-    .status-active, .status-won, .status-sent, .status-connected {{ background: rgba(52,211,153,.15); color:#bbf7d0; border-color: rgba(52,211,153,.35); }}
+    .status-active, .status-won, .status-sent, .status-connected, .status-completed, .status-ready {{ background: rgba(52,211,153,.15); color:#bbf7d0; border-color: rgba(52,211,153,.35); }}
     .status-new, .status-demo, .status-requested, .status-draft, .status-queued {{ background: rgba(56,189,248,.15); color:#bae6fd; border-color: rgba(56,189,248,.35); }}
     .status-follow_up, .status-contacted {{ background: rgba(251,191,36,.15); color:#fde68a; border-color: rgba(251,191,36,.35); }}
-    .status-lost, .status-missing, .status-suppressed {{ background: rgba(251,113,133,.15); color:#fecdd3; border-color: rgba(251,113,133,.35); }}
+    .status-lost, .status-missing, .status-suppressed, .status-failed {{ background: rgba(251,113,133,.15); color:#fecdd3; border-color: rgba(251,113,133,.35); }}
     .list .item {{ display:block; padding: 15px 20px; border-top: 1px solid var(--line); }}
     .list .item:first-child {{ border-top: 0; }}
     .list .item:hover {{ background: rgba(255,255,255,.06); }}
@@ -152,7 +153,7 @@ def layout(title_text: str, active: str, content: str) -> str:
     @media (max-width: 1100px) {{
       .shell {{ grid-template-columns:1fr; }}
       .sidebar {{ height:auto; position:static; }}
-      .nav {{ grid-template-columns: repeat(14, max-content); overflow-x:auto; }}
+      .nav {{ grid-template-columns: repeat(15, max-content); overflow-x:auto; }}
       .metrics, .two, .three, .four, .cards, .form-grid {{ grid-template-columns:1fr; }}
       main, .topbar {{ padding-left:16px; padding-right:16px; }}
     }}

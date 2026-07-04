@@ -24,7 +24,7 @@ def render_campaigns(query: dict[str, list[str]]) -> str:
           <td>{esc(row['business_name'])}</td>
           <td>{status_badge(row['status'])}</td>
           <td>{row['total_recipients'] or 0}</td>
-          <td>{row['queued_recipients'] or 0}</td>
+          <td>{row['queued_recipients'] or 0} queued / {row['ready_recipients'] or 0} ready</td>
           <td>{row['suppressed_recipients'] or 0}</td>
           <td>{format_dt(row['created_at'])}</td>
           <td><a class="btn" href="/campaigns/{row['id']}">Open</a></td>
@@ -74,6 +74,7 @@ def render_campaign_detail(campaign_id: int) -> str:
             return render_not_found()
         recipients = get_campaign_recipients(conn, campaign_id)
     queued = sum(1 for row in recipients if row["status"] == "queued")
+    ready = sum(1 for row in recipients if row["status"] == "ready")
     suppressed = sum(1 for row in recipients if row["status"] == "suppressed")
     rows = "".join(
         f"""
@@ -96,6 +97,7 @@ def render_campaign_detail(campaign_id: int) -> str:
       <div class="grid metrics">
         {metric('Recipients', len(recipients))}
         {metric('Queued', queued, 'good')}
+        {metric('Ready', ready, 'good')}
         {metric('Suppressed', suppressed, 'hot' if suppressed else '')}
         {metric('Max Attempts', campaign['max_attempts'])}
       </div>

@@ -113,6 +113,18 @@ def create_campaign(
         campaign_id,
         {"business_id": business_id, "queued": queued, "suppressed": suppressed},
     )
+    from .jobs import schedule_campaign_jobs
+
+    scheduled_jobs = schedule_campaign_jobs(conn, campaign_id)
+    audit_event(
+        conn,
+        workspace_id,
+        "system",
+        "campaign_jobs_scheduled",
+        "campaign",
+        campaign_id,
+        {"jobs": scheduled_jobs},
+    )
     return get_campaign(conn, campaign_id) or {"id": campaign_id}
 
 
@@ -122,7 +134,8 @@ def get_campaigns(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         select campaigns.*, businesses.name as business_name,
                count(campaign_recipients.id) as total_recipients,
                sum(case when campaign_recipients.status = 'queued' then 1 else 0 end) as queued_recipients,
-               sum(case when campaign_recipients.status = 'suppressed' then 1 else 0 end) as suppressed_recipients
+               sum(case when campaign_recipients.status = 'suppressed' then 1 else 0 end) as suppressed_recipients,
+               sum(case when campaign_recipients.status = 'ready' then 1 else 0 end) as ready_recipients
         from campaigns
         left join businesses on businesses.id = campaigns.business_id
         left join campaign_recipients on campaign_recipients.campaign_id = campaigns.id

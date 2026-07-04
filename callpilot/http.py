@@ -23,6 +23,7 @@ from .compliance import (
     record_consent,
 )
 from .config import SCORE_RULES
+from .jobs import get_jobs, run_due_jobs
 from .repositories import (
     get_business,
     get_businesses,
@@ -57,6 +58,7 @@ from .views import (
     render_compliance,
     render_dashboard,
     render_demo_call,
+    render_jobs,
     render_lead_detail,
     render_leads,
     render_not_found,
@@ -136,6 +138,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_campaigns(query))
         elif re.fullmatch(r"/campaigns/\d+", path):
             self.send_html(render_campaign_detail(int(path.rsplit("/", 1)[1])))
+        elif path == "/jobs":
+            self.send_html(render_jobs(query))
         elif path == "/leads":
             self.send_html(render_leads(query))
         elif re.fullmatch(r"/leads/\d+", path):
@@ -183,6 +187,9 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/api/campaigns":
             with db() as conn:
                 self.send_json({"success": True, "campaigns": get_campaigns(conn)})
+        elif path == "/api/jobs":
+            with db() as conn:
+                self.send_json({"success": True, "jobs": get_jobs(conn, query.get("status", ["all"])[0])})
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:
@@ -257,6 +264,11 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 queued = sum(1 for row in recipients if row["status"] == "queued")
                 suppressed = sum(1 for row in recipients if row["status"] == "suppressed")
             self.redirect(f"/campaigns/{campaign['id']}?saved=queued+{queued}+suppressed+{suppressed}")
+            return
+        if path == "/jobs/run":
+            with db() as conn:
+                results = run_due_jobs(conn)
+            self.redirect(f"/jobs?ran={len(results)}")
             return
         if path == "/compliance/consent":
             form = self.form()

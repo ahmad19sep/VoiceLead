@@ -347,6 +347,30 @@ def init_db() -> None:
 
             create index if not exists idx_campaign_recipients_campaign_status
                 on campaign_recipients(campaign_id, status);
+
+            create table if not exists jobs (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                job_type text not null,
+                resource_type text,
+                resource_id text,
+                payload text,
+                result text,
+                status text default 'pending',
+                priority integer default 5,
+                attempts integer default 0,
+                max_attempts integer default 3,
+                scheduled_at text default current_timestamp,
+                started_at text,
+                finished_at text,
+                error text,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade
+            );
+
+            create index if not exists idx_jobs_status_scheduled
+                on jobs(status, scheduled_at);
             """
         )
         ensure_columns(

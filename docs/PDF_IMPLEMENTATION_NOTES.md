@@ -89,6 +89,16 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
   - missing active outbound consent
 - Campaigns do not auto-dial; they prepare a compliant queue for a later worker/provider slice.
 
+## Implemented In Job Queue Slice
+
+- Added `jobs` table with durable pending/running/completed/failed states.
+- Added `callpilot/jobs.py` manual worker helpers.
+- Added campaign recipient preparation jobs when compliant campaign recipients are queued.
+- Added `/jobs` page with job counts and a manual `Run Due Jobs` action.
+- Added `GET /api/jobs`.
+- Running due campaign jobs re-checks DNC, consent, and business max-attempt policy before marking a recipient `ready`.
+- The worker still does not place phone calls; it prepares recipients for a future provider dialer adapter.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

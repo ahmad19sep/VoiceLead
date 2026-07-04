@@ -158,6 +158,8 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/modules/{module_key}`
 - `GET /api/compliance/summary`
 - `GET /api/admin/health`
+- `GET /api/providers`
+- `GET /api/providers/{provider_key}`
 - `GET /api/qa/evaluations`
 - `GET /api/campaigns`
 - `GET /api/jobs`
@@ -189,6 +191,7 @@ Example voice webhook payload:
 - `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/jobs.py` - durable job queue and manual worker helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
+- `callpilot/providers.py` - provider adapter registry for telephony, AI, voice runtime, STT, and TTS readiness
 - `callpilot/security.py` - provider readiness and webhook signature validation helpers
 - `callpilot/qa.py` - call QA scoring and evaluation backfill helpers
 - `callpilot/storage.py` - SQLite connection and schema setup

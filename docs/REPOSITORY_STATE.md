@@ -11,6 +11,7 @@ CallPilot AI is a Python-only local SaaS demo for universal AI calling workflows
 - `app.py` is the small local entry point.
 - `callpilot/config.py` stores app constants, demo transcripts, and `.env` loading.
 - `callpilot/modules.py` stores the PDF-derived industry module registry, workflow states, language policy, compliance rules, and business-type mapping.
+- `callpilot/providers.py` stores provider adapters, provider health, Twilio outbound dispatch, and Twilio signature validation helpers.
 - `callpilot/storage.py` owns SQLite connection and schema setup.
 - `callpilot/repositories.py` contains database read helpers.
 - `callpilot/analysis.py` extracts call fields, scores leads, adds module metadata, and attaches safety/compliance context.
@@ -25,7 +26,7 @@ CallPilot AI is a Python-only local SaaS demo for universal AI calling workflows
 - SQLite is the development database; PostgreSQL and migrations are not implemented.
 - Mock AI analysis is used; OpenAI/Anthropic/realtime runtime adapters are not implemented.
 - Demo call simulator creates local leads and bookings; these are not production success states.
-- Twilio webhooks exist, but webhook signature verification, recording consent controls, and production call billing records are not complete.
+- Twilio webhooks exist with signature verification support; recording consent controls and production call billing records are not complete.
 - Bookings are local records; external calendar/PMS/EHR/POS/CRM confirmation is not implemented.
 - Notifications are dashboard rows; production SMS/email/Slack/WhatsApp adapters are not complete.
 
@@ -33,7 +34,7 @@ CallPilot AI is a Python-only local SaaS demo for universal AI calling workflows
 
 - Multi-tenant workspaces, users, RBAC, staff contacts, and tenant isolation.
 - PostgreSQL schema, migrations, indexes, retention jobs, and encrypted sensitive storage.
-- Provider adapter interfaces for telephony, voice runtime, AI models, calendars, CRMs, ticketing, and messaging.
+- Provider adapter implementations beyond Twilio outbound dispatch, including Vapi, Retell, realtime AI, calendars, CRMs, ticketing, and messaging.
 - Versioned workflow engine with nodes, transitions, retries, idempotency, human approval, and audit trails.
 - Compliance policy engine for healthcare, outbound calling, legal/finance, fair housing, payments, privacy, and regional recording consent.
 - Knowledge ingest/search, prompt packs, multilingual voice model routing, QA scorecards, and human review queues.
@@ -46,3 +47,4 @@ CallPilot AI is a Python-only local SaaS demo for universal AI calling workflows
 - Dashboard smoke test: `GET /`
 - Module catalog smoke test: `GET /modules`
 - Module API smoke test: `GET /api/modules`
+- Provider API smoke test: `GET /api/providers`

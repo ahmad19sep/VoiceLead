@@ -99,6 +99,17 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - Running due campaign jobs re-checks DNC, consent, and business max-attempt policy before marking a recipient `ready`.
 - The worker still does not place phone calls; it prepares recipients for a future provider dialer adapter.
 
+## Implemented In Provider Adapter Slice
+
+- Added `callpilot/providers.py` with a reusable provider adapter contract.
+- Added a real Twilio Voice adapter for outbound-call creation through the existing Twilio implementation.
+- Added honest unavailable adapter behavior for OpenAI, Vapi, Retell, Deepgram, and ElevenLabs until their runtime adapters are implemented.
+- Moved provider readiness, public URL checks, production environment checks, and Twilio signature validation into the shared provider layer.
+- Kept `callpilot/security.py` as the production-readiness policy layer.
+- Added `GET /api/providers` and `GET /api/providers/{provider_key}`.
+- Expanded Admin Health provider rows with provider category and capabilities.
+- Added provider registry and Twilio signature regression tests.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

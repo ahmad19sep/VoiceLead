@@ -26,6 +26,7 @@ from .config import SCORE_RULES
 from .jobs import get_jobs, run_due_jobs
 from .knowledge import ingest_knowledge_document, search_knowledge
 from .modules import INDUSTRY_MODULES, module_by_key
+from .providers import create_outbound_call, provider_by_key, provider_statuses
 from .repositories import (
     get_business,
     get_businesses,
@@ -40,7 +41,6 @@ from .security import system_readiness, twilio_signature_required, validate_twil
 from .storage import db
 from .telephony import (
     app_url,
-    create_twilio_outbound_call,
     get_or_create_call_session,
     next_twilio_prompt,
     should_finish_twilio_call,
@@ -208,6 +208,15 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 )
         elif path == "/api/admin/health":
             self.send_json({"success": True, **system_readiness()})
+        elif path == "/api/providers":
+            self.send_json({"success": True, "providers": provider_statuses()})
+        elif re.fullmatch(r"/api/providers/[a-z0-9_]+", path):
+            key = path.rsplit("/", 1)[1]
+            provider = provider_by_key(key)
+            if provider.key != key:
+                self.send_json({"success": False, "error": "Provider not found"}, 404)
+                return
+            self.send_json({"success": True, "provider": provider.health()})
         elif path == "/api/qa/evaluations":
             with db() as conn:
                 self.send_json({"success": True, "evaluations": get_qa_evaluations(conn, query.get("status", ["all"])[0])})
@@ -279,7 +288,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                     )
                 allowed, policy_msg = outbound_allowed(conn, business, to_number)
             if allowed:
-                ok, msg = create_twilio_outbound_call(to_number, business_id)
+                result = create_outbound_call(form.get("provider") or "twilio", to_number, business_id)
+                ok, msg = result.success, result.message
             else:
                 ok, msg = False, policy_msg
             param = "message" if ok else "error"

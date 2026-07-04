@@ -13,8 +13,10 @@ def render_admin_health() -> str:
         f"""
         <tr>
           <td><strong>{esc(row['provider'])}</strong></td>
+          <td>{esc(row['category'])}</td>
           <td>{integration_badge(row['connected'])}</td>
           <td>{integration_badge(row['production_ready'], 'Ready' if row['production_ready'] else 'Not Ready')}</td>
+          <td>{esc(', '.join(row['capabilities']))}</td>
           <td>{esc(', '.join(row['requirements']))}</td>
         </tr>
         """
@@ -49,11 +51,12 @@ def render_admin_health() -> str:
     </section>
     <section class="panel table-wrap" style="margin-top:18px;">
       <div class="pad"><h2>Provider Readiness</h2></div>
-      <table><thead><tr><th>Provider</th><th>Connected</th><th>Production</th><th>Requirements</th></tr></thead><tbody>{provider_rows}</tbody></table>
+      <table><thead><tr><th>Provider</th><th>Category</th><th>Connected</th><th>Production</th><th>Capabilities</th><th>Requirements</th></tr></thead><tbody>{provider_rows}</tbody></table>
     </section>
     <section class="panel pad" style="margin-top:18px;">
       <h2>Health API</h2>
       <p><code>GET /api/admin/health</code></p>
+      <p><code>GET /api/providers</code></p>
     </section>
     """
     return layout("Admin Health", "Admin", content)

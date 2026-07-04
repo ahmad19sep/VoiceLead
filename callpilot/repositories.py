@@ -105,6 +105,35 @@ def get_notifications(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     ).fetchall()
     return [dict(row) for row in rows]
 
+def get_qa_evaluations(conn: sqlite3.Connection, status: str | None = None) -> list[dict[str, Any]]:
+    sql = """
+        select qa_evaluations.*, businesses.name as business_name, businesses.business_type,
+               leads.customer_name, call_logs.provider, call_logs.created_at as call_created_at
+        from qa_evaluations
+        left join businesses on businesses.id = qa_evaluations.business_id
+        left join leads on leads.id = qa_evaluations.lead_id
+        left join call_logs on call_logs.id = qa_evaluations.call_log_id
+    """
+    args: list[Any] = []
+    if status and status != "all":
+        sql += " where qa_evaluations.qa_status = ?"
+        args.append(status)
+    sql += " order by datetime(qa_evaluations.evaluated_at) desc"
+    return [dict(row) for row in conn.execute(sql, args).fetchall()]
+
+def get_qa_for_lead(conn: sqlite3.Connection, lead_id: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        select qa_evaluations.*, call_logs.provider, call_logs.created_at as call_created_at
+        from qa_evaluations
+        left join call_logs on call_logs.id = qa_evaluations.call_log_id
+        where qa_evaluations.lead_id = ?
+        order by datetime(qa_evaluations.evaluated_at) desc
+        """,
+        (lead_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
 def get_events(conn: sqlite3.Connection, lead_id: int | None = None) -> list[dict[str, Any]]:
     if lead_id:
         rows = conn.execute(

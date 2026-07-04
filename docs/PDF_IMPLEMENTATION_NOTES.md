@@ -58,6 +58,23 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - Added `GET /api/admin/health`.
 - Added public URL, signature requirement, provider connection, and launch blocker reporting.
 
+## Implemented In QA Review Slice
+
+- Added `qa_evaluations` storage with automatic startup backfill for existing call logs.
+- Added `callpilot/qa.py` with rule-based QA scoring for:
+  - transcript presence
+  - contact or handoff capture
+  - summary quality
+  - regulated safety guardrails
+  - booking integrity
+  - language policy handling
+  - actionable next step
+- Added automatic QA evaluation after every analyzed call.
+- Added QA events into each lead timeline.
+- Added `/qa` QA Review page.
+- Added `GET /api/qa/evaluations`.
+- Added QA summaries to lead detail pages.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

@@ -3,9 +3,9 @@ from __future__ import annotations
 from .errors import render_not_found
 from .layout import layout
 from ..config import SCORE_LABELS, SCORE_RULES
-from ..repositories import get_businesses, get_events, get_lead, get_leads
+from ..repositories import get_businesses, get_events, get_lead, get_leads, get_qa_for_lead
 from ..storage import db
-from ..ui import status_badge, temp_badge
+from ..ui import badge, status_badge, temp_badge
 from ..utils import esc, format_dt, from_json, title
 
 
@@ -66,6 +66,7 @@ def render_lead_detail(lead_id: int) -> str:
         if not lead:
             return render_not_found()
         events = get_events(conn, lead_id)
+        qa_rows = get_qa_for_lead(conn, lead_id)
         booking = conn.execute("select * from bookings where lead_id = ? order by id desc limit 1", (lead_id,)).fetchone()
     breakdown = from_json(lead.get("score_breakdown"), {})
     safety = from_json(lead.get("safety_notes"), [])
@@ -80,6 +81,18 @@ def render_lead_detail(lead_id: int) -> str:
         f'<div class="item"><strong>{esc(e["description"])}</strong><div class="muted">{esc(e["event_type"])} - {format_dt(e["created_at"])}</div></div>'
         for e in events
     )
+    qa_html = ""
+    for row in qa_rows:
+        failures = from_json(row.get("critical_failures"), [])
+        findings = from_json(row.get("findings"), [])
+        status_kind = {"pass": "status-active", "review": "status-follow_up", "fail": "status-missing"}.get(row["qa_status"], "status-new")
+        qa_html += f"""
+        <div class="item">
+          <div class="row"><strong>QA {row['qa_score']}/100</strong>{badge(title(row['qa_status']), status_kind)}</div>
+          <div class="muted">{esc((failures or findings or ['No issues detected.'])[0])}</div>
+        </div>
+        """
+    qa_html = qa_html or '<div class="item"><strong>No QA evaluation yet.</strong></div>'
     booking_html = (
         f'<div class="mini"><span>Booking Request</span><strong>{esc(booking["booking_type"])}</strong><p class="muted">{esc(booking["status"])} - {esc(booking["requested_date"] or "")} {esc(booking["requested_time"] or "")}</p></div>'
         if booking
@@ -104,6 +117,7 @@ def render_lead_detail(lead_id: int) -> str:
       </div>
       <div class="grid">
         <div class="panel pad"><h2>Extracted Fields</h2><div class="grid two" style="margin-top:14px;">{fields_html}</div></div>
+        <div class="panel"><div class="pad"><h2>QA Evaluation</h2></div><div class="list">{qa_html}</div></div>
         <div class="panel pad"><h2>Call Transcript</h2><pre>{esc(lead['transcript'])}</pre></div>
         <div class="panel"><div class="pad"><h2>Event Timeline</h2></div><div class="list">{event_html}</div></div>
       </div>

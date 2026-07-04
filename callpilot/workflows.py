@@ -142,28 +142,33 @@ def create_lead_from_analysis(
         ),
     )
     lead_id = int(cur.lastrowid)
-    conn.execute(
-        """
-        insert into call_logs (
-            workspace_id, business_id, lead_id, provider, call_id, caller_phone, transcript, recording_url,
-            duration_seconds, call_status, analysis_json, created_at
-        )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'analyzed', ?, ?)
-        """,
-        (
-            workspace_id,
-            business_id,
-            lead_id,
-            provider,
-            call_id,
-            caller_phone or analysis.get("customer_phone"),
-            transcript,
-            recording_url,
-            max(45, len(transcript.split()) * 2),
-            as_json(analysis),
-            created,
-        ),
+    call_log_id = int(
+        conn.execute(
+            """
+            insert into call_logs (
+                workspace_id, business_id, lead_id, provider, call_id, caller_phone, transcript, recording_url,
+                duration_seconds, call_status, analysis_json, created_at
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, 'analyzed', ?, ?)
+            """,
+            (
+                workspace_id,
+                business_id,
+                lead_id,
+                provider,
+                call_id,
+                caller_phone or analysis.get("customer_phone"),
+                transcript,
+                recording_url,
+                max(45, len(transcript.split()) * 2),
+                as_json(analysis),
+                created,
+            ),
+        ).lastrowid
     )
+    from .qa import evaluate_call_log
+
+    qa_result = evaluate_call_log(conn, call_log_id)
     create_event(conn, business_id, lead_id, "lead_created", "Lead created from call analysis.", {}, created)
     create_event(
         conn,
@@ -179,4 +184,13 @@ def create_lead_from_analysis(
     if analysis.get("handoff_triggered"):
         create_notification(conn, business_id, lead_id, analysis)
         create_event(conn, business_id, lead_id, "human_handoff_triggered", "Human handoff rule triggered.", {})
+    if qa_result:
+        create_event(
+            conn,
+            business_id,
+            lead_id,
+            "qa_evaluated",
+            f"QA evaluated call at {qa_result['qa_score']}/100 with status {qa_result['qa_status']}.",
+            qa_result,
+        )
     return get_lead(conn, lead_id) or {"id": lead_id}

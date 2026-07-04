@@ -28,6 +28,7 @@ from .repositories import (
     get_knowledge,
     get_lead,
     get_leads,
+    get_qa_evaluations,
     get_services,
     production_readiness,
 )
@@ -57,6 +58,7 @@ from .views import (
     render_leads,
     render_not_found,
     render_notifications,
+    render_qa,
     render_real_calling,
     render_settings,
     save_agent,
@@ -135,6 +137,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_bookings())
         elif path == "/calls":
             self.send_html(render_calls())
+        elif path == "/qa":
+            self.send_html(render_qa(query))
         elif path == "/notifications":
             self.send_html(render_notifications())
         elif path == "/compliance":
@@ -166,6 +170,9 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 )
         elif path == "/api/admin/health":
             self.send_json({"success": True, **system_readiness()})
+        elif path == "/api/qa/evaluations":
+            with db() as conn:
+                self.send_json({"success": True, "evaluations": get_qa_evaluations(conn, query.get("status", ["all"])[0])})
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:

@@ -286,6 +286,29 @@ def init_db() -> None:
                 created_at text default current_timestamp,
                 foreign key (workspace_id) references workspaces(id) on delete cascade
             );
+
+            create table if not exists qa_evaluations (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                business_id integer,
+                lead_id integer,
+                call_log_id integer unique,
+                qa_score integer default 0,
+                qa_status text default 'review',
+                rule_breakdown text,
+                findings text,
+                critical_failures text,
+                reviewer_notes text,
+                reviewed_by text,
+                review_required integer default 1,
+                evaluated_at text,
+                reviewed_at text,
+                created_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete set null,
+                foreign key (lead_id) references leads(id) on delete set null,
+                foreign key (call_log_id) references call_logs(id) on delete cascade
+            );
             """
         )
         ensure_columns(
@@ -397,3 +420,7 @@ def init_db() -> None:
             from .seed import seed_data
 
             seed_data(conn)
+
+        from .qa import backfill_qa_evaluations
+
+        backfill_qa_evaluations(conn)

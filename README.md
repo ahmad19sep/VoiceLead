@@ -44,6 +44,7 @@ Keep the PowerShell window open while using the app.
 - `/leads` - Leads CRM
 - `/bookings` - Booking requests
 - `/calls` - Call logs
+- `/qa` - QA evaluation queue for call safety and workflow review
 - `/notifications` - Human handoff alerts
 - `/compliance` - Workspace, consent, Do Not Call, staff handoff contacts, and audit logs
 - `/admin` - Provider readiness, production blockers, and webhook security status
@@ -70,6 +71,7 @@ Keep the PowerShell window open while using the app.
 - Mock AI call analysis
 - Language detection and regulated-advice guardrails in mock analysis
 - Universal lead scoring
+- Automatic QA scoring for safety, workflow integrity, language handling, and next-step quality
 - Hot, warm, and cold lead categories
 - Booking request creation
 - Human handoff notifications
@@ -146,6 +148,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/businesses/{id}/readiness`
 - `GET /api/compliance/summary`
 - `GET /api/admin/health`
+- `GET /api/qa/evaluations`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
@@ -172,6 +175,7 @@ Example voice webhook payload:
 - `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
 - `callpilot/security.py` - provider readiness and webhook signature validation helpers
+- `callpilot/qa.py` - call QA scoring and evaluation backfill helpers
 - `callpilot/storage.py` - SQLite connection and schema setup
 - `callpilot/repositories.py` - database read helpers
 - `callpilot/analysis.py` - mock AI call analysis, field extraction, and scoring

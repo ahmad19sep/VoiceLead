@@ -7,6 +7,7 @@ from .dashboard import render_dashboard
 from .errors import render_not_found
 from .leads import render_lead_detail, render_leads
 from .operations import render_bookings, render_calls, render_notifications
+from .qa import render_qa
 from .settings import render_settings
 
 __all__ = [
@@ -25,5 +26,6 @@ __all__ = [
     "render_bookings",
     "render_calls",
     "render_notifications",
+    "render_qa",
     "render_settings",
 ]

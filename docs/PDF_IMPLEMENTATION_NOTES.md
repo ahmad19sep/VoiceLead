@@ -75,6 +75,20 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - Added `GET /api/qa/evaluations`.
 - Added QA summaries to lead detail pages.
 
+## Implemented In Campaign Planning Slice
+
+- Added `campaigns` and `campaign_recipients` tables.
+- Added `callpilot/campaigns.py` for target parsing and suppression checks.
+- Added `/campaigns` page to create plan-only outbound campaigns.
+- Added campaign detail pages showing queued and suppressed recipients.
+- Added `GET /api/campaigns`.
+- Applied suppression before queueing:
+  - missing phone
+  - Do Not Call
+  - outbound disabled by business policy
+  - missing active outbound consent
+- Campaigns do not auto-dial; they prepare a compliant queue for a later worker/provider slice.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

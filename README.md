@@ -41,6 +41,7 @@ Keep the PowerShell window open while using the app.
 - `/agent-builder` - Create or edit an AI phone agent
 - `/demo-call` - Test call transcripts
 - `/real-calling` - Connect a real Twilio phone number
+- `/campaigns` - Prepare outbound campaigns with consent/DNC suppression
 - `/leads` - Leads CRM
 - `/bookings` - Booking requests
 - `/calls` - Call logs
@@ -80,6 +81,7 @@ Keep the PowerShell window open while using the app.
 - Real Twilio Voice webhook endpoints
 - Twilio webhook signature validation with production enforcement
 - Outbound Twilio test-call starter
+- Outbound campaign planning with queued/suppressed recipient lists
 
 ## Demo Mode
 
@@ -149,6 +151,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/compliance/summary`
 - `GET /api/admin/health`
 - `GET /api/qa/evaluations`
+- `GET /api/campaigns`
 - `GET /api/leads`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
@@ -172,6 +175,7 @@ Example voice webhook payload:
 
 - `app.py` - small app entry point
 - `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
+- `callpilot/campaigns.py` - outbound campaign planning and suppression helpers
 - `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
 - `callpilot/security.py` - provider readiness and webhook signature validation helpers

@@ -2,6 +2,7 @@ from .agent_builder import render_agent_builder, save_agent
 from .admin import render_admin_health
 from .businesses import render_business_detail, render_businesses
 from .call_pages import render_demo_call, render_real_calling
+from .campaigns import render_campaign_detail, render_campaigns
 from .compliance import render_compliance
 from .dashboard import render_dashboard
 from .errors import render_not_found
@@ -16,6 +17,8 @@ __all__ = [
     "save_agent",
     "render_business_detail",
     "render_businesses",
+    "render_campaign_detail",
+    "render_campaigns",
     "render_demo_call",
     "render_real_calling",
     "render_compliance",

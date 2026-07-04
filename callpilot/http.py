@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from .analysis import analyze_call
+from .campaigns import create_campaign, get_campaign_recipients, get_campaigns
 from .compliance import (
     add_dnc_entry,
     audit_event,
@@ -51,6 +52,8 @@ from .views import (
     render_business_detail,
     render_businesses,
     render_calls,
+    render_campaign_detail,
+    render_campaigns,
     render_compliance,
     render_dashboard,
     render_demo_call,
@@ -129,6 +132,10 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_demo_call(query))
         elif path == "/real-calling":
             self.send_html(render_real_calling(query))
+        elif path == "/campaigns":
+            self.send_html(render_campaigns(query))
+        elif re.fullmatch(r"/campaigns/\d+", path):
+            self.send_html(render_campaign_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/leads":
             self.send_html(render_leads(query))
         elif re.fullmatch(r"/leads/\d+", path):
@@ -173,6 +180,9 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/api/qa/evaluations":
             with db() as conn:
                 self.send_json({"success": True, "evaluations": get_qa_evaluations(conn, query.get("status", ["all"])[0])})
+        elif path == "/api/campaigns":
+            with db() as conn:
+                self.send_json({"success": True, "campaigns": get_campaigns(conn)})
         elif path == "/api/twilio/voice":
             self.handle_twilio_voice(query, {})
         else:
@@ -230,6 +240,23 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 ok, msg = False, policy_msg
             param = "message" if ok else "error"
             self.redirect(f"/real-calling?business_id={business_id}&{param}={urlencode({'x': msg})[2:]}")
+            return
+        if path == "/campaigns/create":
+            form = self.form()
+            business_id = int(form.get("business_id") or 1)
+            with db() as conn:
+                campaign = create_campaign(
+                    conn,
+                    business_id,
+                    form.get("name") or "Outbound campaign",
+                    form.get("campaign_type") or "outbound_call",
+                    form.get("targets") or "",
+                    form.get("script") or "",
+                )
+                recipients = get_campaign_recipients(conn, int(campaign["id"]))
+                queued = sum(1 for row in recipients if row["status"] == "queued")
+                suppressed = sum(1 for row in recipients if row["status"] == "suppressed")
+            self.redirect(f"/campaigns/{campaign['id']}?saved=queued+{queued}+suppressed+{suppressed}")
             return
         if path == "/compliance/consent":
             form = self.form()

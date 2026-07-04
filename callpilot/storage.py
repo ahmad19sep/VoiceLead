@@ -309,6 +309,44 @@ def init_db() -> None:
                 foreign key (lead_id) references leads(id) on delete set null,
                 foreign key (call_log_id) references call_logs(id) on delete cascade
             );
+
+            create table if not exists campaigns (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer not null,
+                name text not null,
+                campaign_type text default 'outbound_call',
+                status text default 'draft',
+                script text,
+                quiet_hours text,
+                max_attempts integer default 0,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists campaign_recipients (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                campaign_id integer not null,
+                business_id integer not null,
+                customer_name text,
+                customer_phone text,
+                notes text,
+                status text default 'queued',
+                suppression_reason text,
+                attempts integer default 0,
+                last_attempt_at text,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (campaign_id) references campaigns(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create index if not exists idx_campaign_recipients_campaign_status
+                on campaign_recipients(campaign_id, status);
             """
         )
         ensure_columns(

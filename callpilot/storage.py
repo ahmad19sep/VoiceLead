@@ -528,6 +528,15 @@ def init_db() -> None:
 
             create index if not exists idx_booking_calendar_syncs_booking
                 on booking_calendar_syncs(booking_id, id);
+
+            create index if not exists idx_call_logs_provider_call
+                on call_logs(provider, call_id);
+
+            create index if not exists idx_agent_events_lead
+                on agent_events(lead_id, id);
+
+            create index if not exists idx_audit_logs_workspace
+                on audit_logs(workspace_id, id);
             """
         )
         ensure_columns(
@@ -605,6 +614,13 @@ def init_db() -> None:
             },
         )
         conn.execute("create index if not exists idx_workspace_users_workspace on workspace_users(workspace_id, status)")
+        # These depend on workspace_id columns added by ensure_columns above.
+        conn.execute("create index if not exists idx_leads_workspace_created on leads(workspace_id, created_at)")
+        conn.execute("create index if not exists idx_bookings_workspace_status on bookings(workspace_id, status)")
+        conn.execute("create index if not exists idx_call_logs_workspace_created on call_logs(workspace_id, created_at)")
+        conn.execute(
+            "create index if not exists idx_notifications_workspace_created on notifications(workspace_id, created_at)"
+        )
 
         from .compliance import audit_event, default_workspace_id, default_workspace_user
         from .modules import comma, lines, module_for_business_type

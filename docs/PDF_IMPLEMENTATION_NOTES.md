@@ -268,6 +268,6 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 
 ## Next Production Phases
 
-- Continue the clinic critical path from C10/C11: deployment hardening (postgres-ready storage seams, fake providers for CI, fresh-clone dry run) and the final acceptance evidence pass.
+- C0-C11 local critical path is complete (fresh-clone dry run recorded in `docs/evidence/FRESH_CLONE_REPORT.md`). Next work is credential-gated: live Twilio/Vapi/Retell/Google Calendar adapters with recorded EN/UR/AR proof calls, then post-revenue postgres/migrations and fake-provider E2E.
 - Implement the live Vapi/Retell runtime adapter so the C5 session config answers a real number with recorded EN/UR/AR proof calls.
 - Keep non-healthcare modules, generic outbound campaigns, and self-serve client onboarding frozen until the clinic acceptance test passes.

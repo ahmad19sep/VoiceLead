@@ -13,7 +13,8 @@ def configured_host(default: str = "127.0.0.1") -> str:
 
 
 def configured_port(default: int = 8000) -> int:
-    raw = os.environ.get("APP_PORT", "").strip()
+    # APP_PORT wins; PORT is the convention free hosts (Render, Railway) inject.
+    raw = (os.environ.get("APP_PORT") or os.environ.get("PORT") or "").strip()
     if not raw:
         return default
     try:
@@ -28,11 +29,12 @@ def run(host: str | None = None, port: int | None = None) -> None:
     host = host or configured_host()
     port = port or configured_port()
     init_db()
-    from .auth import auth_required, ensure_owner_credentials
+    from .auth import auth_required, ensure_demo_viewer, ensure_owner_credentials
     from .storage import db
 
     with db() as conn:
         one_time_password = ensure_owner_credentials(conn)
+        ensure_demo_viewer(conn)
     if one_time_password:
         print("AUTH: one-time owner password generated (change it after first login):")
         print(f"AUTH: {one_time_password}")

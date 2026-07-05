@@ -24,6 +24,13 @@ class ServerConfigTest(unittest.TestCase):
                 with patch.dict(os.environ, {"APP_PORT": value}, clear=True):
                     self.assertEqual(configured_port(), 8000)
 
+    def test_platform_injected_port_is_honored(self) -> None:
+        # Render/Railway free hosts inject PORT; APP_PORT still wins when set.
+        with patch.dict(os.environ, {"PORT": "10000"}, clear=True):
+            self.assertEqual(configured_port(), 10000)
+        with patch.dict(os.environ, {"PORT": "10000", "APP_PORT": "9000"}, clear=True):
+            self.assertEqual(configured_port(), 9000)
+
 
 if __name__ == "__main__":
     unittest.main()

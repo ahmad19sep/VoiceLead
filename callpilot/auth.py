@@ -184,3 +184,37 @@ def ensure_owner_credentials(conn: sqlite3.Connection) -> str | None:
     )
     audit_event(conn, workspace_id, "system", "owner_password_generated", "workspace_user", owner["id"], {})
     return one_time
+
+
+def ensure_demo_viewer(conn: sqlite3.Connection) -> None:
+    """Seed a read-only demo account for client walkthroughs.
+
+    Controlled by DEMO_VIEWER_EMAIL/DEMO_VIEWER_PASSWORD. The account gets the
+    'viewer' role, so route RBAC denies every mutation — safe to hand to a
+    prospect on a live demo instance.
+    """
+    email = (os.environ.get("DEMO_VIEWER_EMAIL") or "").strip().lower()
+    password = os.environ.get("DEMO_VIEWER_PASSWORD") or ""
+    if not email or not password:
+        return
+    if validate_password(password):
+        raise ValueError("DEMO_VIEWER_PASSWORD is too short; use at least 10 characters.")
+    workspace_id = default_workspace_id(conn)
+    row = conn.execute(
+        "select id from workspace_users where workspace_id=? and lower(email)=lower(?)",
+        (workspace_id, email),
+    ).fetchone()
+    if row:
+        conn.execute(
+            "update workspace_users set role='viewer', status='active', password_hash=?, updated_at=? where id=?",
+            (hash_password(password), now(), row["id"]),
+        )
+    else:
+        conn.execute(
+            """
+            insert into workspace_users (workspace_id, name, email, role, status, password_hash, created_at, updated_at)
+            values (?, 'Demo Viewer', ?, 'viewer', 'active', ?, ?, ?)
+            """,
+            (workspace_id, email, hash_password(password), now(), now()),
+        )
+    audit_event(conn, workspace_id, "system", "demo_viewer_configured", "workspace_user", email, {})

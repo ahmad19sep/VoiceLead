@@ -1,0 +1,35 @@
+# One-click deploy blueprint for Render (free plan).
+# Docs: docs/DEPLOY_FREE.md
+#
+# Free-plan notes:
+# - The instance sleeps after ~15 minutes idle; the first request wakes it
+#   (cold start ~30-60s). Fine for demos.
+# - The disk is ephemeral: SQLite resets to fresh seeded demo data on each
+#   deploy/restart. That is intentional for a demo instance.
+
+services:
+  - type: web
+    name: callpilot-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: local            # keep demo mode; switch to production only with real providers
+      - key: PLATFORM_MODE
+        value: clinic
+      - key: AUTH_REQUIRED
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false             # set in the Render dashboard (your operator login)
+      - key: ADMIN_PASSWORD
+        sync: false             # set in the Render dashboard (10+ characters)
+      - key: DEMO_VIEWER_EMAIL
+        sync: false             # optional read-only account to hand to prospects
+      - key: DEMO_VIEWER_PASSWORD
+        sync: false
+      - key: APP_URL
+        sync: false             # set to https://<your-service>.onrender.com after first deploy

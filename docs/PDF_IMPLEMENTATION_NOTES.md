@@ -244,6 +244,14 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - The harness runs twice in CI: inside the unit suite (`tests/test_golden_calls.py`) and as a dedicated `python -m callpilot.golden` gate that prints a per-script report and fails the build on any regression.
 - The first harness run caught two real trilingual regressions, which were fixed: Arabic booking intent was not recognized (booking keywords were English-only) and noisy Roman Urdu was routed to English (missing Roman Urdu markers).
 
+## Implemented In Clinic C10 Free-Hosting Deployment Slice
+
+- Honored platform-injected `PORT` (Render/Railway) in server config and the Docker healthcheck; `APP_PORT` still wins when explicitly set, and the image no longer bakes a fixed port.
+- Added `render.yaml` blueprint for a one-click free Render deploy: Docker runtime, `/healthz` health check, `AUTH_REQUIRED=true`, generated `SECRET_KEY`, and dashboard-set admin/demo credentials.
+- Added `ensure_demo_viewer`: `DEMO_VIEWER_EMAIL`/`DEMO_VIEWER_PASSWORD` seed a read-only `viewer` account for prospect walkthroughs — proven over HTTP that the viewer can browse the dashboard but receives `403` on mutation routes.
+- Added `docs/DEPLOY_FREE.md`: Render free-plan walkthrough (sleep/cold-start and ephemeral-disk caveats stated honestly), laptop+ngrok option for live Twilio call demos, and the upgrade path once a client pays.
+- Added regression tests for PORT fallback/precedence and demo-viewer seeding, idempotency, and browse-yes/mutate-no HTTP behavior.
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

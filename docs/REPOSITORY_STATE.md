@@ -21,6 +21,7 @@ The current tenant foundation includes a default workspace, default owner user, 
 - `callpilot/reminders.py` stores the versioned `clinic-reminder-v1` policy-gated appointment reminder job: single-attempt scheduling, opt-out/consent/DNC gates, quiet-hours deferral, trilingual scripts with opt-out sentences, and honest Twilio-backed delivery.
 - `callpilot/auth.py` stores PBKDF2 password hashing, login rate limiting with lockout, the `AUTH_REQUIRED` gate, and admin/one-time owner credential bootstrap; `callpilot/views/auth_pages.py` renders the login page.
 - `callpilot/golden.py` stores the versioned `clinic-golden-v1` golden call harness (script loader, hallucination and safety checks, suite runner, CI CLI); `tests/golden_calls/` holds the EN/UR/AR golden scripts.
+- `render.yaml` and `docs/DEPLOY_FREE.md` support a free Render deploy with auth on, generated secrets, and an optional read-only demo-viewer account; the server honors platform-injected `PORT`.
 - `callpilot/providers.py` stores provider adapters, provider health, Twilio outbound dispatch, and Twilio signature validation helpers.
 - `callpilot/sessions.py` stores signed local session-cookie helpers for workspace selection.
 - `callpilot/storage.py` owns SQLite connection and schema setup.
@@ -66,7 +67,7 @@ The current tenant foundation includes a default workspace, default owner user, 
 - Compliance policy engine for healthcare, outbound calling, legal/finance, fair housing, payments, privacy, and regional recording consent.
 - Knowledge ingest/search, prompt packs, multilingual voice model routing, QA scorecards, and human review queues.
 - Hosted production deployment, secrets management, and managed database configuration.
-- Clinic critical path phases C10-C11 remain incomplete: deployment hardening (postgres seams, fake providers, fresh-clone report) and the final acceptance evidence pass. C3 delivered the versioned booking state machine, C4 calendar sync seams, C5 trilingual prompt packs and session config, C6 emergency detection with PHI-free escalation, C7 the policy-gated reminder job, C8 real password authentication, and C9 the golden EN/UR/AR call harness in CI — but the live Google Calendar API client, a live Vapi/Retell runtime adapter, real Twilio delivery, user invitations/password reset, and real alert channels await real credentials.
+- Clinic critical path phase C11 remains: the fresh-clone dry-run acceptance report. C10 delivered free-hosting deployment readiness (PORT support, Render blueprint, demo viewer, deploy guide); postgres/migrations and fake-provider E2E stay post-revenue work. C3 delivered the versioned booking state machine, C4 calendar sync seams, C5 trilingual prompt packs and session config, C6 emergency detection with PHI-free escalation, C7 the policy-gated reminder job, C8 real password authentication, and C9 the golden EN/UR/AR call harness in CI — but the live Google Calendar API client, a live Vapi/Retell runtime adapter, real Twilio delivery, user invitations/password reset, and real alert channels await real credentials.
 - C1 still needs richer UI/browser E2E evidence and stricter field-level validation before production, but the local schema, internal operator save path, and persistence tests are implemented.
 
 ## Current Verification
@@ -91,6 +92,8 @@ The current tenant foundation includes a default workspace, default owner user, 
 - Reminder job test: one job per confirmed booking with `max_attempts=1`, scheduling at the reminder offset, policy suppression (outbound disabled/opt-out/consent), quiet-hours deferral with attempts reset to zero, honest provider-unavailable results with failed notifications and no fake `reminded` state, and a mocked provider call id transitioning the booking to `reminded`.
 - Auth test: password hash/verify with unique salts, seeded-owner login, short-password rejection, five-failure lockout with audit, admin env bootstrap, one-time owner password, and live HTTP flows (redirect to `/login`, 401 APIs, login sets session, logout revokes, security headers present).
 - Golden call harness: `python -m callpilot.golden` and `tests/test_golden_calls.py` run 10 EN/UR/AR golden scripts with per-language booking/emergency/noise/advice/hallucination expectations plus universal grounding and no-medical-advice checks; CI fails on any regression.
+- Demo viewer test: seeded read-only account logs in over HTTP, browses the dashboard, and receives `403` on mutation routes; seeding is idempotent.
+- Server port test: platform-injected `PORT` is honored and `APP_PORT` takes precedence.
 - Provider API smoke test: `GET /api/providers`
 - Workspace API smoke test: `GET /api/workspace`
 - Workspace switch smoke test: `POST /workspace/switch`

@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
+# APP_PORT is intentionally not baked in: the server falls back to the
+# platform-injected PORT (Render/Railway) and then to 8000.
 ENV APP_HOST=0.0.0.0 \
-    APP_PORT=8000 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -19,6 +20,6 @@ USER callpilot
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('APP_PORT', '8000') + '/readyz', timeout=3).read()"
+    CMD python -c "import os, urllib.request; port = os.environ.get('APP_PORT') or os.environ.get('PORT') or '8000'; urllib.request.urlopen('http://127.0.0.1:' + port + '/readyz', timeout=3).read()"
 
 CMD ["python", "app.py"]

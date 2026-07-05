@@ -71,9 +71,8 @@ class CalendarAdapter:
 
 class EnvCalendarAdapter(CalendarAdapter):
     env_keys: tuple[str, ...] = ()
-    # A real Google API client is not wired in this stdlib build, so even when
-    # credentials are present the adapter stays not-production-ready and refuses
-    # to fabricate confirmed event ids.
+    # Subclasses decide production readiness; without a working client the
+    # adapter refuses to fabricate confirmed event ids.
     ready_requires_client = True
 
     def connected(self) -> bool:
@@ -89,7 +88,8 @@ class EnvCalendarAdapter(CalendarAdapter):
             False,
             self.name,
             action,
-            f"{self.name} credentials are present but the live API client is not wired; "
+            f"{self.name} credentials are present but the client is not ready "
+            "(invalid service-account JSON or missing signing library); "
             "no confirmed event id is created and the booking stays pending.",
             raw_status="pending_client",
         )
@@ -113,8 +113,53 @@ class GoogleCalendarAdapter(EnvCalendarAdapter):
     requirements = (
         "GOOGLE_CALENDAR_ID",
         "GOOGLE_CALENDAR_CREDENTIALS service-account JSON",
-        "live Google Calendar API client adapter",
+        "cryptography package for service-account signing",
     )
+
+    def _client_ready(self) -> bool:
+        from .google_calendar import client_ready
+
+        return client_ready()[0]
+
+    def production_ready(self) -> bool:
+        return self.connected() and self._client_ready()
+
+    def create_event(self, booking: dict[str, Any]) -> CalendarResult:
+        if not self._client_ready():
+            return self._not_ready("create_event")
+        from .google_calendar import create_event
+
+        try:
+            event_id, message = create_event(booking)
+        except Exception as error:
+            return CalendarResult(False, self.name, "create_event", str(error), raw_status="error")
+        if not event_id:
+            return CalendarResult(False, self.name, "create_event", message, raw_status="needs_date")
+        return CalendarResult(True, self.name, "create_event", message, event_id, "confirmed")
+
+    def cancel_event(self, booking: dict[str, Any], event_id: str | None) -> CalendarResult:
+        if not self._client_ready():
+            return self._not_ready("cancel_event")
+        from .google_calendar import cancel_event
+
+        try:
+            ok, message = cancel_event(event_id)
+        except Exception as error:
+            return CalendarResult(False, self.name, "cancel_event", str(error), event_id, "error")
+        return CalendarResult(ok, self.name, "cancel_event", message, event_id, "cancelled" if ok else "error")
+
+    def reschedule_event(self, booking: dict[str, Any], event_id: str | None) -> CalendarResult:
+        if not self._client_ready():
+            return self._not_ready("reschedule_event")
+        from .google_calendar import reschedule_event
+
+        try:
+            new_event_id, message = reschedule_event(booking, event_id)
+        except Exception as error:
+            return CalendarResult(False, self.name, "reschedule_event", str(error), event_id, "error")
+        if not new_event_id:
+            return CalendarResult(False, self.name, "reschedule_event", message, raw_status="needs_date")
+        return CalendarResult(True, self.name, "reschedule_event", message, new_event_id, "confirmed")
 
 
 def calendar_registry() -> dict[str, CalendarAdapter]:

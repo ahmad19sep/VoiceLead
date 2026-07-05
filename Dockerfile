@@ -12,6 +12,9 @@ RUN useradd --create-home --shell /usr/sbin/nologin callpilot \
     && mkdir -p /app /data \
     && chown -R callpilot:callpilot /app /data
 
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY --chown=callpilot:callpilot app.py worker.py ./
 COPY --chown=callpilot:callpilot callpilot ./callpilot
 

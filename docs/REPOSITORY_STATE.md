@@ -22,6 +22,7 @@ The current tenant foundation includes a default workspace, default owner user, 
 - `callpilot/auth.py` stores PBKDF2 password hashing, login rate limiting with lockout, the `AUTH_REQUIRED` gate, and admin/one-time owner credential bootstrap; `callpilot/views/auth_pages.py` renders the login page.
 - `callpilot/golden.py` stores the versioned `clinic-golden-v1` golden call harness (script loader, hallucination and safety checks, suite runner, CI CLI); `tests/golden_calls/` holds the EN/UR/AR golden scripts.
 - `render.yaml` and `docs/DEPLOY_FREE.md` support a free Render deploy with auth on, generated secrets, and an optional read-only demo-viewer account; the server honors platform-injected `PORT`.
+- `callpilot/google_calendar.py` is the live Google Calendar API client (service-account RS256 JWT via the `cryptography` package — the single non-stdlib dependency in `requirements.txt` — token caching, create/cancel/reschedule with real event ids); `callpilot/views/calendar_page.py` renders the in-app week-grid appointment calendar with a needs-a-date bucket.
 - `callpilot/providers.py` stores provider adapters, provider health, Twilio outbound dispatch, and Twilio signature validation helpers.
 - `callpilot/sessions.py` stores signed local session-cookie helpers for workspace selection.
 - `callpilot/storage.py` owns SQLite connection and schema setup.
@@ -42,6 +43,7 @@ The current tenant foundation includes a default workspace, default owner user, 
 
 - SQLite is the development database; PostgreSQL and migrations are not implemented.
 - Mock AI analysis is used; OpenAI/Anthropic/realtime runtime adapters are not implemented.
+- Google Calendar sync is live when `GOOGLE_CALENDAR_ID`/`GOOGLE_CALENDAR_CREDENTIALS` are configured: confirmed bookings create real events (real event ids), reschedules patch them, cancellations delete them; without valid credentials the sync stays honestly pending.
 - Demo call simulator creates local leads and bookings; these are not production success states.
 - Twilio webhooks exist with signature verification support; recording consent controls and production call billing records are not complete.
 - Bookings are local records with a Google Calendar sync seam (C4); external calendar confirmation stays honestly pending until the live Google API client is wired, and PMS/EHR/POS/CRM confirmation is not implemented.

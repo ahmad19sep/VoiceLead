@@ -74,10 +74,10 @@ class ClinicSchedulingTest(unittest.TestCase):
                 result = sync_booking(conn, booking_id, "create")
                 conn.commit()
 
-        # Credentials present but no live client: honest pending, still no fabricated id.
+        # Credentials present but not usable (invalid JSON): honest pending, no fabricated id.
         self.assertFalse(result["event_id"])
         self.assertEqual(result["sync_status"], "pending")
-        self.assertIn("not wired", result["message"])
+        self.assertIn("not ready", result["message"])
 
     def test_confirm_transition_triggers_pending_calendar_sync(self) -> None:
         booking_id = self.new_booking("requested")

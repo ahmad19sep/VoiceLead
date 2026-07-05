@@ -1,0 +1,3 @@
+# The app core is Python stdlib only. This single dependency provides RS256
+# signing for Google service-account authentication (live Calendar sync).
+cryptography>=42

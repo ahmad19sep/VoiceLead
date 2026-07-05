@@ -112,9 +112,22 @@ def extract_people(text: str) -> str | None:
 
 def extract_time(text: str) -> str | None:
     match = re.search(r"\b(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM))\b", text)
-    return match.group(1) if match else None
+    if match:
+        return match.group(1)
+    # 24h clock ("at 11:00", "at 15:30") - avoid matching dates like 2026-07-08.
+    match = re.search(r"\bat\s+([01]?\d|2[0-3]):([0-5]\d)\b", text)
+    if match:
+        return f"{match.group(1)}:{match.group(2)}"
+    return None
 
 def extract_timeline(text: str) -> str | None:
+    # Explicit calendar dates win: ISO (2026-07-08) or numeric (08/07/2026).
+    match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
+    if match:
+        return match.group(1)
+    match = re.search(r"\b(\d{1,2}/\d{1,2}/\d{4})\b", text)
+    if match:
+        return match.group(1)
     patterns = [
         r"\b(this Friday)\b",
         r"\b(tomorrow)\b",

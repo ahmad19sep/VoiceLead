@@ -74,5 +74,18 @@ class GoldenCallHarnessTest(unittest.TestCase):
         self.assertIn("summary_contact_claim_grounded", failed2)
 
 
+class DateExtractionRegressionTest(unittest.TestCase):
+    def test_explicit_dates_and_24h_times_are_extracted(self) -> None:
+        from callpilot.analysis import extract_time, extract_timeline
+
+        transcript = "I want to book a cleaning appointment on 2026-07-08 at 11:00 please."
+        self.assertEqual(extract_timeline(transcript), "2026-07-08")
+        self.assertEqual(extract_time(transcript), "11:00")
+        self.assertEqual(extract_timeline("book me for 08/07/2026"), "08/07/2026")
+        self.assertEqual(extract_time("come at 3:30 pm"), "3:30 pm")
+        self.assertEqual(extract_timeline("I need it tomorrow"), "tomorrow")
+        self.assertIsNone(extract_time("the year 2026-07-08 alone is not a time"))
+
+
 if __name__ == "__main__":
     unittest.main()

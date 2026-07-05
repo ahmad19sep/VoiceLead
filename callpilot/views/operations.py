@@ -8,8 +8,12 @@ from ..ui import status_badge
 from ..utils import esc, format_dt, title
 
 
+PREFERRED_STATUS_ORDER = ["confirmed", "reminded", "rescheduled", "completed", "no_show", "cancelled"]
+
+
 def booking_action_cell(booking: dict) -> str:
-    options = sorted(allowed_transitions(booking["status"]))
+    allowed = allowed_transitions(booking["status"])
+    options = [status for status in PREFERRED_STATUS_ORDER if status in allowed]
     if not options:
         return '<span class="muted">Locked (terminal)</span>'
     option_html = "".join(f"<option>{esc(option)}</option>" for option in options)

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test:
+    name: Python checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile Python sources
+        run: python -m compileall app.py worker.py callpilot
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test*.py"
+
+      - name: Golden call harness (EN/UR/AR regressions)
+        run: python -m callpilot.golden
+
+      - name: Smoke test worker
+        run: python worker.py --once --limit 1
+
+      - name: Build Docker image
+        run: docker build -t callpilot-ai:ci .
+
+      - name: Validate Compose config
+        run: docker compose config
+
+      - name: Smoke test local server probes
+        shell: bash
+        run: |
+          python app.py > python-server.out.log 2> python-server.err.log &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8000/healthz > /tmp/healthz.json; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          curl --fail --silent http://127.0.0.1:8000/healthz
+          curl --fail --silent http://127.0.0.1:8000/readyz

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .layout import layout
+from .layout import layout, metric
 from ..config import APP_NAME
 from ..integrations import env_connected
 from ..storage import db
@@ -30,13 +30,21 @@ def render_settings(saved: bool = False) -> str:
         f'<div class="mini"><span>{esc(name)}</span><strong>{integration_badge(connected, label)}</strong></div>'
         for name, connected, label in env_rows
     )
+    connected_count = sum(1 for _, connected, _ in env_rows if connected)
+    missing_count = len(env_rows) - connected_count
     content = f"""
-    <section><h1>Settings</h1><p class="muted">Integration status and demo mode settings.</p>{'<p>'+badge('Saved','status-active')+'</p>' if saved else ''}</section>
+    <section class="row"><div><h1>Settings</h1><p class="muted">Integration status and demo mode settings.</p></div>{badge('Saved','status-active') if saved else badge('Demo mode','status-demo')}</section>
+    <section class="grid metrics">
+      {metric('Integrations', len(env_rows))}
+      {metric('Connected', connected_count, 'good')}
+      {metric('Missing', missing_count, 'hot' if missing_count else '')}
+      {metric('Database', 'SQLite', 'good')}
+    </section>
     <section class="panel pad" style="margin-top:18px;">
       <h2>App Settings</h2>
       <form method="post" action="/settings/update" class="form-grid" style="margin-top:14px;">
         <label>App name<input name="app_name" value="{esc(setting_rows.get('app_name', APP_NAME))}"></label>
-        <label>Theme<input name="theme" value="{esc(setting_rows.get('theme', 'dark premium'))}"></label>
+        <label>Theme<input name="theme" value="{esc(setting_rows.get('theme', 'light operations'))}"></label>
         <label>Demo mode<select name="demo_mode"><option value="true">true</option><option value="false">false</option></select></label>
         <label>Default hot lead threshold<input name="default_hot_lead_threshold" type="number" value="{esc(setting_rows.get('default_hot_lead_threshold', '75'))}"></label>
         <label>Default warm lead threshold<input name="default_warm_lead_threshold" type="number" value="{esc(setting_rows.get('default_warm_lead_threshold', '45'))}"></label>

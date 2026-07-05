@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from .layout import layout
-from ..compliance import get_audit_logs, get_consent_records, get_dnc_entries, get_staff_contacts, get_workspace
+from ..compliance import (
+    get_audit_logs,
+    get_consent_records,
+    get_dnc_entries,
+    get_staff_contacts,
+    workspace_context,
+)
 from ..repositories import get_businesses
 from ..storage import db
 from ..ui import badge, status_badge
@@ -11,7 +17,10 @@ from ..utils import esc, format_dt, from_json
 def render_compliance(query: dict[str, list[str]]) -> str:
     saved = query.get("saved", [""])[0]
     with db() as conn:
-        workspace = get_workspace(conn)
+        context = workspace_context(conn)
+        workspace = context["workspace"]
+        current_user = context["current_user"]
+        users = context["users"]
         businesses = get_businesses(conn)
         staff = get_staff_contacts(conn)
         consents = get_consent_records(conn)
@@ -71,20 +80,32 @@ def render_compliance(query: dict[str, list[str]]) -> str:
         """
         for row in audits
     )
+    user_rows = "".join(
+        f"""
+        <tr>
+          <td><strong>{esc(row['name'])}</strong><div class="muted">{esc(row['email'])}</div></td>
+          <td>{esc(row['role_label'])}</td>
+          <td>{status_badge(row['status'])}</td>
+          <td>{esc(', '.join(row['permissions']))}</td>
+          <td>{format_dt(row['updated_at'] or row['created_at'])}</td>
+        </tr>
+        """
+        for row in users
+    )
     content = f"""
     <section class="hero">
       <div class="row">
         <div>
           <h1>Compliance Center</h1>
-          <p>Workspace, staff handoff, consent, Do Not Call, and audit controls for the production calling roadmap.</p>
+          <p>Workspace, user roles, staff handoff, consent, Do Not Call, and audit controls for the production calling roadmap.</p>
         </div>
         {badge('Workspace Active', 'status-active')}
       </div>
       <div class="grid four" style="margin-top:14px;">
         <div class="mini"><span>Workspace</span><strong>{esc((workspace or {}).get('name', 'Default Workspace'))}</strong></div>
-        <div class="mini"><span>Plan</span><strong>{esc((workspace or {}).get('plan', 'demo'))}</strong></div>
-        <div class="mini"><span>Timezone</span><strong>{esc((workspace or {}).get('timezone', 'Asia/Karachi'))}</strong></div>
-        <div class="mini"><span>Status</span><strong>{esc((workspace or {}).get('status', 'active'))}</strong></div>
+        <div class="mini"><span>Current user</span><strong>{esc(current_user.get('name', 'Demo Operator'))}</strong></div>
+        <div class="mini"><span>Role</span><strong>{esc(current_user.get('role_label', 'Workspace owner'))}</strong></div>
+        <div class="mini"><span>Members</span><strong>{len(users)}</strong></div>
       </div>
     </section>
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Saved','status-active')+' '+esc(saved)+'</section>' if saved else ''}
@@ -109,6 +130,10 @@ def render_compliance(query: dict[str, list[str]]) -> str:
         </div>
         <div class="actions" style="margin-top:14px;"><button class="btn danger" type="submit">Add To DNC</button></div>
       </form>
+    </section>
+    <section class="panel table-wrap" style="margin-top:18px;">
+      <div class="pad"><h2>Workspace Users And Roles</h2></div>
+      <table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Permissions</th><th>Updated</th></tr></thead><tbody>{user_rows or '<tr><td colspan="5">No workspace users yet.</td></tr>'}</tbody></table>
     </section>
     <section class="panel table-wrap" style="margin-top:18px;">
       <div class="pad"><h2>Staff Handoff Contacts</h2></div>

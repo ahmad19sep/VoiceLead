@@ -1,0 +1,12 @@
+{
+  "name": "en_hallucination_guard",
+  "language": "en",
+  "description": "Vague call with no contact details; analysis must not invent a name, phone, or contact claim.",
+  "transcript": "Hello, I was just wondering what your opening hours are and whether you do whitening. I will call again later.",
+  "expect": {
+    "language_code": "en",
+    "booking_requested": false,
+    "medical_emergency": false,
+    "summary_must_not_contain": ["Contact details were provided"]
+  }
+}

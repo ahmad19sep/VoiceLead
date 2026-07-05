@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .config import clinic_mode
+
 
 DEFAULT_LANGUAGES = "English, Urdu, Roman Urdu/Hindi"
 DEFAULT_CALL_TYPES = "Inbound FAQ, lead capture, booking request, human handoff"
@@ -10,6 +12,7 @@ DEFAULT_BLOCKED_OUTCOMES = "No confirmed booking without staff or calendar confi
 
 INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
     "healthcare": {
+        "status": "active",
         "label": "Healthcare Clinics Hospitals Dentists",
         "business_types": ["Clinic", "Hospital", "Dentist"],
         "intake_fields": [
@@ -41,6 +44,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         ],
     },
     "hospitality": {
+        "status": "deferred",
         "label": "Hotels And Hospitality",
         "business_types": ["Hotel"],
         "intake_fields": ["Guest name", "Phone", "Check-in", "Check-out", "Guests", "Room type", "Budget", "Special request"],
@@ -57,6 +61,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Cancellation policy accuracy", "Availability not hallucinated", "Guest request routing"],
     },
     "restaurant": {
+        "status": "deferred",
         "label": "Restaurants And Food Ordering",
         "business_types": ["Restaurant"],
         "intake_fields": ["Customer name", "Phone", "Date", "Time", "Party size", "Order items", "Allergy note", "Pickup/delivery"],
@@ -73,6 +78,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Allergen disclaimer", "Modifier capture", "Busy-hour escalation"],
     },
     "support": {
+        "status": "deferred",
         "label": "Call Centers And Customer Support",
         "business_types": ["Call Center", "Customer Support"],
         "intake_fields": ["Customer name", "Phone", "Account identifier", "Issue category", "Verification fields", "Priority"],
@@ -84,6 +90,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["No account action before verification", "SLA escalation", "Policy version accuracy"],
     },
     "sales": {
+        "status": "deferred",
         "label": "Lead Generation Sales And Product Caller",
         "business_types": ["Lead Generation", "Sales", "Software Agency"],
         "intake_fields": ["Name", "Company", "Need", "Budget", "Timeline", "Email", "Phone", "Consent source"],
@@ -95,6 +102,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Opt-out suppression", "Max attempts", "No misleading pricing claims"],
     },
     "home_services": {
+        "status": "deferred",
         "label": "Home Services And Field Service",
         "business_types": ["Home Services"],
         "intake_fields": ["Name", "Phone", "Service", "Location", "Problem description", "Urgency", "Access notes"],
@@ -106,6 +114,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Emergency routing", "Service-area detection", "No exact quote hallucination"],
     },
     "regulated_services": {
+        "status": "deferred",
         "label": "Legal Insurance And Finance",
         "business_types": ["Law Firm", "Legal", "Insurance", "Finance"],
         "intake_fields": ["Name", "Phone", "Matter type", "Short description", "Urgency", "Preferred time", "Documents needed"],
@@ -117,6 +126,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Advice refusal", "Conflict-check fields", "Disclaimers present"],
     },
     "real_estate": {
+        "status": "deferred",
         "label": "Real Estate And Property Management",
         "business_types": ["Real Estate", "Property Management"],
         "intake_fields": ["Name", "Phone", "Buyer/seller/renter type", "Property/listing", "Budget", "Timeline", "Showing time"],
@@ -128,6 +138,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Fair-housing compliance", "Showing confirmation checks", "Maintenance emergency routing"],
     },
     "commerce": {
+        "status": "deferred",
         "label": "Ecommerce Retail Automotive And Logistics",
         "business_types": ["Ecommerce", "Retail", "Automotive", "Logistics"],
         "intake_fields": ["Name", "Phone", "Order/product/vehicle", "Store/location", "Issue", "Preferred appointment", "Delivery status"],
@@ -139,6 +150,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["No stale inventory claims", "Return policy accuracy", "Payment data safety"],
     },
     "admin_services": {
+        "status": "deferred",
         "label": "Education Recruiting Travel Government",
         "business_types": ["Education", "Recruiting", "Travel", "Government"],
         "intake_fields": ["Name", "Phone", "Program/job/package/service", "Eligibility facts", "Documents", "Preferred appointment"],
@@ -150,6 +162,7 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
         "qa_checks": ["Eligibility disclaimer", "Department routing", "Document checklist accuracy"],
     },
     "custom": {
+        "status": "deferred",
         "label": "Custom Universal Module",
         "business_types": ["Custom"],
         "intake_fields": ["Name", "Phone", "Email", "Request", "Timeline", "Notes"],
@@ -163,6 +176,12 @@ INDUSTRY_MODULES: dict[str, dict[str, Any]] = {
 }
 
 
+def visible_modules() -> dict[str, dict[str, Any]]:
+    if not clinic_mode():
+        return INDUSTRY_MODULES
+    return {key: module for key, module in INDUSTRY_MODULES.items() if module.get("status") == "active"}
+
+
 def module_for_business_type(business_type: str | None) -> dict[str, Any]:
     for key, module in INDUSTRY_MODULES.items():
         if business_type in module["business_types"]:
@@ -171,13 +190,14 @@ def module_for_business_type(business_type: str | None) -> dict[str, Any]:
 
 
 def module_by_key(module_key: str | None) -> dict[str, Any]:
-    if module_key in INDUSTRY_MODULES:
-        return {"key": module_key, **INDUSTRY_MODULES[module_key]}
+    modules = visible_modules()
+    if module_key in modules:
+        return {"key": module_key, **modules[module_key]}
     return {"key": "custom", **INDUSTRY_MODULES["custom"]}
 
 
 def module_options() -> list[tuple[str, str]]:
-    return [(key, module["label"]) for key, module in INDUSTRY_MODULES.items()]
+    return [(key, module["label"]) for key, module in visible_modules().items()]
 
 
 def lines(values: list[str] | str | None) -> str:

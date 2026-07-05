@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .layout import layout
+from .layout import layout, metric
 from ..config import SAMPLE_TRANSCRIPTS
 from ..integrations import env_connected
 from ..repositories import get_businesses
@@ -35,9 +35,17 @@ def render_demo_call(query: dict[str, list[str]]) -> str:
         ]
     )
     content = f"""
-    <section>
-      <h1>Demo Call Simulator</h1>
-      <p class="muted">Select a business, test a sample transcript, and create leads, bookings, call logs, and handoff alerts.</p>
+    <section class="row">
+      <div>
+        <h1>Demo Call Simulator</h1>
+        <p class="muted">Select a business, test a sample transcript, and create leads, bookings, call logs, and handoff alerts.</p>
+      </div>
+      {badge('Mock AI', 'status-demo')}
+    </section>
+    <section class="grid metrics">
+      {metric('Businesses', len(businesses))}
+      {metric('Samples', len(SAMPLE_TRANSCRIPTS))}
+      {metric('Selected', esc(selected['business_type']), 'good')}
     </section>
     <section class="grid two" style="margin-top:18px;">
       <form class="panel pad" method="post" action="/demo-call/analyze">
@@ -47,7 +55,8 @@ def render_demo_call(query: dict[str, list[str]]) -> str:
         <label>Transcript<textarea name="transcript" style="min-height:360px;">{esc(transcript)}</textarea></label>
         <div class="actions" style="margin-top:14px;"><button class="btn primary" type="submit">Analyze Call</button></div>
       </form>
-      <aside class="panel pad">
+      <aside class="callout">
+        <div class="kicker" style="color:rgba(255,255,255,.7);">Demo pipeline</div>
         <h2>Mock AI Agent Pipeline</h2>
         <p class="muted">Router Agent, Knowledge Agent, Lead Qualification Agent, Booking Agent, Scoring Agent, Handoff Agent, Safety Agent, and Notification Agent run in demo mode.</p>
         <div class="grid">
@@ -88,6 +97,12 @@ def render_real_calling(query: dict[str, list[str]]) -> str:
     </section>
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Success','status-active')+' '+esc(message)+'</section>' if message else ''}
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Error','status-missing')+' '+esc(error)+'</section>' if error else ''}
+    <section class="grid metrics">
+      {metric('Businesses', len(businesses))}
+      {metric('Public URL', 'Ready' if can_twilio_reach else 'Local', 'good' if can_twilio_reach else 'warm')}
+      {metric('Twilio', 'Ready' if env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER') else 'Missing', 'good' if env_connected('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER') else 'hot')}
+      {metric('Signatures', 'Required' if twilio_signature_required() else 'Optional', 'good' if twilio_signature_required() else 'warm')}
+    </section>
     <section class="grid two" style="margin-top:18px;">
       <div class="panel pad">
         <h2>Inbound Calling Setup</h2>

@@ -26,12 +26,18 @@ def _mini_items(values: list[str] | str | None) -> str:
 def render_modules() -> str:
     cards = "".join(
         f"""
-        <article class="panel pad">
-          <div class="row"><h2>{esc(module['label'])}</h2>{badge(str(len(module['allowed_call_types'])) + ' workflows', 'status-demo')}</div>
+        <article class="panel pad entity-card">
+          <div class="entity-head">
+            <div class="entity-title">
+              <span class="avatar">{esc(module['label'][:1])}</span>
+              <div style="min-width:0;"><h2>{esc(module['label'])}</h2><p class="muted" style="margin:4px 0 0;">{esc(key)}</p></div>
+            </div>
+            {badge(str(len(module['allowed_call_types'])) + ' workflows', 'status-demo')}
+          </div>
           <p class="muted">{esc(module['compliance_profile'])}</p>
           <div class="mini"><span>Business Types</span><strong>{esc(comma(module['business_types']))}</strong></div>
           <div class="mini" style="margin-top:12px;"><span>Integrations</span><strong>{esc(module['integration_targets'])}</strong></div>
-          <div class="actions" style="margin-top:14px;">
+          <div class="actions" style="margin-top:auto;">
             <a class="btn primary" href="/modules/{esc(key)}">Open Module</a>
           </div>
         </article>

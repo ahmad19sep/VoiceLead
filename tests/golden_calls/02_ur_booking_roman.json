@@ -1,0 +1,12 @@
+{
+  "name": "ur_booking_roman",
+  "language": "ur",
+  "description": "Roman Urdu booking; language routing must pick Urdu and still create a booking request.",
+  "transcript": "Assalam o alaikum, mujhe kal ke liye appointment chahiye, dant saaf karwane hain. Mera number 0300 1112233 hai, shukriya.",
+  "expect": {
+    "language_code": "ur",
+    "session_language": "ur",
+    "booking_requested": true,
+    "medical_emergency": false
+  }
+}

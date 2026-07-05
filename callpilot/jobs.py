@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from .compliance import audit_event, default_workspace_id
+from .compliance import active_workspace_id, audit_event, default_workspace_id
 from .utils import as_json, from_json, now
 
 
@@ -18,7 +18,7 @@ def enqueue_job(
     max_attempts: int = 3,
     priority: int = 5,
 ) -> int:
-    workspace_id = workspace_id or default_workspace_id(conn)
+    workspace_id = active_workspace_id(conn, workspace_id)
     return int(
         conn.execute(
             """
@@ -44,11 +44,17 @@ def enqueue_job(
     )
 
 
-def get_jobs(conn: sqlite3.Connection, status: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-    sql = "select * from jobs"
-    args: list[Any] = []
+def get_jobs(
+    conn: sqlite3.Connection,
+    status: str | None = None,
+    limit: int = 100,
+    workspace_id: int | None = None,
+) -> list[dict[str, Any]]:
+    workspace_id = active_workspace_id(conn, workspace_id)
+    sql = "select * from jobs where workspace_id = ?"
+    args: list[Any] = [workspace_id]
     if status and status != "all":
-        sql += " where status = ?"
+        sql += " and status = ?"
         args.append(status)
     sql += " order by datetime(scheduled_at), priority asc, id asc limit ?"
     args.append(limit)
@@ -78,11 +84,14 @@ def run_campaign_call_prepare(conn: sqlite3.Connection, job: dict[str, Any]) -> 
 
     payload = from_json(job.get("payload"), {})
     recipient_id = int(payload.get("recipient_id") or job.get("resource_id") or 0)
-    row = conn.execute("select * from campaign_recipients where id = ?", (recipient_id,)).fetchone()
+    row = conn.execute(
+        "select * from campaign_recipients where id = ? and workspace_id = ?",
+        (recipient_id, job.get("workspace_id")),
+    ).fetchone()
     if not row:
         return {"status": "skipped", "reason": "recipient_not_found"}
     recipient = dict(row)
-    business = get_business(conn, int(recipient["business_id"]))
+    business = get_business(conn, int(recipient["business_id"]), int(job.get("workspace_id") or default_workspace_id(conn)))
     if not business:
         return {"status": "skipped", "reason": "business_not_found"}
     if recipient["status"] not in {"queued", "ready"}:
@@ -149,8 +158,16 @@ def run_job(conn: sqlite3.Connection, job: dict[str, Any]) -> dict[str, Any]:
             result = run_campaign_call_prepare(conn, job)
         elif job["job_type"] == "post_call_qa":
             result = run_post_call_qa(conn, job)
+        elif job["job_type"] == "appointment_reminder":
+            from .reminders import run_appointment_reminder
+
+            result = run_appointment_reminder(conn, job)
         else:
             result = {"status": "skipped", "reason": f"unknown_job_type_{job['job_type']}"}
+        if result.get("status") == "deferred":
+            # The handler already rescheduled the job (for example quiet hours);
+            # leave it pending instead of completing it.
+            return {"job_id": job["id"], "status": "deferred", "result": result}
         complete_job(conn, int(job["id"]), result)
         return {"job_id": job["id"], "status": "completed", "result": result}
     except Exception as error:
@@ -158,15 +175,20 @@ def run_job(conn: sqlite3.Connection, job: dict[str, Any]) -> dict[str, Any]:
         return {"job_id": job["id"], "status": "failed", "error": str(error)}
 
 
-def run_due_jobs(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
+def run_due_jobs(
+    conn: sqlite3.Connection,
+    limit: int = 20,
+    workspace_id: int | None = None,
+) -> list[dict[str, Any]]:
+    workspace_id = active_workspace_id(conn, workspace_id)
     rows = conn.execute(
         """
         select * from jobs
-        where status = 'pending' and datetime(scheduled_at) <= datetime(?)
+        where workspace_id = ? and status = 'pending' and datetime(scheduled_at) <= datetime(?)
         order by priority asc, datetime(scheduled_at), id
         limit ?
         """,
-        (now(), limit),
+        (workspace_id, now(), limit),
     ).fetchall()
     return [run_job(conn, dict(row)) for row in rows]
 

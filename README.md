@@ -1,6 +1,8 @@
 # CallPilot AI
 
-CallPilot AI is a Python-only SaaS demo for creating AI phone agents for many types of businesses:
+CallPilot AI is currently focused on the clinic launch path: an AI receptionist for clinics that can answer patient calls, capture appointment requests, route urgent cases, and keep demo behavior visibly separate from production success.
+
+The long-term universal platform remains in the codebase behind `PLATFORM_MODE=universal`, but the default `PLATFORM_MODE=clinic` freezes non-healthcare modules while the clinic critical path is built.
 
 - Hotels
 - Clinics / doctors
@@ -34,25 +36,75 @@ http://127.0.0.1:8000
 
 Keep the PowerShell window open while using the app.
 
+## Run With Docker
+
+Build and run the local demo image:
+
+```bash
+docker build -t callpilot-ai .
+docker run --rm -p 8000:8000 callpilot-ai
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+The container starts with a fresh SQLite demo database inside the container filesystem.
+
+For a persistent local container setup with the web app and worker sharing the same SQLite volume:
+
+```bash
+docker compose up --build
+```
+
+Compose stores the database in the `callpilot-data` Docker volume at `/data/callpilot.db`.
+
+## Run Worker
+
+Process due background jobs once:
+
+```bash
+python worker.py --once
+```
+
+Run the polling worker:
+
+```bash
+python worker.py
+```
+
+Use `WORKER_POLL_INTERVAL` and `WORKER_BATCH_LIMIT` to tune polling and batch size.
+
+## Platform Mode
+
+`PLATFORM_MODE=clinic` is the default. In clinic mode, the sidebar hides frozen universal surfaces such as Modules and Campaigns, shows the clinic receptionist tagline, and renames Leads to Patients/Inquiries.
+
+Use `PLATFORM_MODE=universal` only when intentionally working on the deferred universal roadmap.
+
 ## Main Pages
 
 - `/` - Dashboard
 - `/businesses` - Business agents
-- `/modules` - PDF-pack industry module registry
-- `/agent-builder` - Create or edit an AI phone agent
 - `/knowledge` - Versioned business knowledge ingest, approval, and search
 - `/demo-call` - Test call transcripts
 - `/real-calling` - Connect a real Twilio phone number
-- `/campaigns` - Prepare outbound campaigns with consent/DNC suppression
-- `/jobs` - Manual job queue runner for campaign preparation and future worker tasks
-- `/leads` - Leads CRM
+- `/leads` - Patients/Inquiries CRM
 - `/bookings` - Booking requests
 - `/calls` - Call logs
 - `/qa` - QA evaluation queue for call safety and workflow review
 - `/notifications` - Human handoff alerts
 - `/compliance` - Workspace, consent, Do Not Call, staff handoff contacts, and audit logs
-- `/admin` - Provider readiness, production blockers, and webhook security status
 - `/settings` - Integration status and demo mode settings
+
+Operator-only or universal-mode pages:
+
+- `/agent-builder` - internal operator tool for configuring clinics
+- `/jobs` - operator job queue visibility
+- `/modules` - universal-mode module registry
+- `/campaigns` - frozen in clinic mode until narrow appointment reminders are implemented
+- `/admin` - universal/admin health surface
 
 ## Test A Demo Call
 
@@ -71,6 +123,9 @@ Keep the PowerShell window open while using the app.
 - PDF-pack aligned industry module configuration
 - Per-business language, compliance, consent, recording, QA, and outbound policy settings
 - Default workspace foundation with staff contacts, consent records, Do Not Call entries, and audit logs
+- Default workspace owner user, role policy metadata, signed workspace selection cookies, workspace-scoped local reads, and local mutation-route RBAC checks
+- Clinic mode flag with healthcare-only module visibility and deferred non-healthcare registry status
+- Internal clinic onboarding fields for timezone, languages, insurance, cancellation window, after-hours policy, emergency policy, providers/doctors, locations, holidays/weekly closures, and service durations
 - Services and FAQs per business
 - Versioned knowledge documents with manual, document, URL, and policy ingest
 - Approved knowledge search used by call analysis and agent review
@@ -152,8 +207,11 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 
 ## API Routes
 
+- `GET /healthz`
+- `GET /readyz`
 - `GET /api/businesses`
 - `GET /api/businesses/{id}/readiness`
+- `GET /api/workspace`
 - `GET /api/modules`
 - `GET /api/modules/{module_key}`
 - `GET /api/compliance/summary`
@@ -165,6 +223,7 @@ You can also use the **Outbound Test Call** form on `/real-calling` after the Tw
 - `GET /api/jobs`
 - `GET /api/knowledge/search?business_id=1&q=refund`
 - `GET /api/leads`
+- `POST /workspace/switch`
 - `POST /api/ai/analyze-call`
 - `POST /api/voice/webhook`
 - `POST /api/twilio/voice`
@@ -187,12 +246,14 @@ Example voice webhook payload:
 
 - `app.py` - small app entry point
 - `callpilot/config.py` - app constants, demo transcript samples, and `.env` loading
+- `callpilot/clinic.py` - clinic profile, providers/doctors, locations, holidays, and onboarding validation helpers
 - `callpilot/campaigns.py` - outbound campaign planning and suppression helpers
 - `callpilot/compliance.py` - workspace, consent, Do Not Call, outbound policy, and audit helpers
 - `callpilot/jobs.py` - durable job queue and manual worker helpers
 - `callpilot/modules.py` - industry module templates from the universal AI calling PDF pack
 - `callpilot/providers.py` - provider adapter registry for telephony, AI, voice runtime, STT, and TTS readiness
 - `callpilot/security.py` - provider readiness and webhook signature validation helpers
+- `callpilot/sessions.py` - signed local session-cookie helpers for active workspace selection
 - `callpilot/qa.py` - call QA scoring and evaluation backfill helpers
 - `callpilot/storage.py` - SQLite connection and schema setup
 - `callpilot/repositories.py` - database read helpers
@@ -202,6 +263,7 @@ Example voice webhook payload:
 - `callpilot/http.py` - HTTP request handler and route dispatch
 - `callpilot/server.py` - local server startup
 - `callpilot/views/` - dashboard, CRM, agent builder, calling, and settings pages
+- `docs/PROJECT_DOCUMENTATION.md` - full project reference documentation
 - `docs/REPOSITORY_STATE.md` - current architecture map and production gaps
 - `docs/PRODUCT_DEFINITION.md` - product rules and forbidden fake-success behavior
 - `callpilot.db` - SQLite database, created automatically

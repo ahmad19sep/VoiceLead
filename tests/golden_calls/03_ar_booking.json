@@ -1,0 +1,11 @@
+{
+  "name": "ar_booking",
+  "language": "ar",
+  "description": "Arabic booking request; Arabic detection with clinic fallback session language (BrightCare supports en,ur).",
+  "transcript": "مرحبا، أريد حجز موعد لتنظيف الأسنان الأسبوع القادم من فضلك. شكرا",
+  "expect": {
+    "language_code": "ar",
+    "booking_requested": true,
+    "medical_emergency": false
+  }
+}

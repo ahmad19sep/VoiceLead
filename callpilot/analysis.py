@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from .config import SCORE_RULES
+from .emergency import detect_emergency
 from .utils import lead_temperature
 
 
@@ -130,6 +131,13 @@ def extract_timeline(text: str) -> str | None:
             return match.group(1)
     return None
 
+def _language_code(text: str) -> str:
+    # Lazy import: voice_runtime pulls provider/clinic modules that this
+    # lightweight analysis module should not import at load time.
+    from .voice_runtime import detect_language_code
+
+    return detect_language_code(text)
+
 def detect_language(text: str) -> str:
     lower = text.lower()
     roman_urdu_terms = [
@@ -235,14 +243,21 @@ def analyze_call(
     request_type = request_type_for_business(business["business_type"], transcript)
     booking_requested = bool(
         re.search(r"\bbook|reserve|appointment|schedule|confirm|visit|table|room|consultation|call back\b", lower)
+        # Arabic and Urdu-script booking words: reserve/appointment/meeting time.
+        or re.search(r"حجز|موعد|ملاقات|وقت چاہیے", transcript)
     )
     human_request = bool(
         re.search(r"\bhuman|manager|doctor|lawyer|agent|sales person|receptionist|technician|staff\b", lower)
     )
     emergency = bool(re.search(r"\burgent|emergency|today|now|immediately|asap|as soon as possible\b", lower))
+    medical_emergency = detect_emergency(transcript)
     complaint = bool(re.search(r"\bangry|frustrated|complaint|bad service|upset\b", lower))
     high_value = bool(budget and re.search(r"\$|2000|5000|[5-9][0-9]{3,}", budget))
-    urgency = "emergency" if "emergency" in lower else ("urgent" if emergency else None)
+    urgency = (
+        "emergency"
+        if medical_emergency.get("detected") or "emergency" in lower
+        else ("urgent" if emergency else None)
+    )
     intent = "ready_to_book" if booking_requested else ("human_request" if human_request else "information_request")
     relevant_knowledge = keyword_search(knowledge, transcript)
 
@@ -273,6 +288,10 @@ def analyze_call(
 
     if healthcare:
         safety_notes.append("No medical diagnosis or medicine recommendation was given.")
+    if medical_emergency.get("detected"):
+        safety_notes.append(
+            "Medical emergency indicator detected; approved emergency script applies and staff escalation is required."
+        )
     if business["business_type"] in {"Law Firm", "Legal", "Insurance", "Finance"}:
         safety_notes.append("No licensed advice was given; the call is intake only.")
     if business["business_type"] == "Hotel":
@@ -292,6 +311,7 @@ def analyze_call(
         score >= int(business.get("hot_lead_threshold") or 75)
         or human_request
         or emergency
+        or medical_emergency.get("detected", False)
         or sensitive
         or high_value
         or complaint
@@ -304,10 +324,12 @@ def analyze_call(
         "booking_requested": booking_requested,
         "human_request": human_request,
         "emergency_detected": emergency,
+        "medical_emergency": medical_emergency,
         "number_of_people": extract_people(transcript),
         "requested_time": extract_time(transcript),
         "knowledge_matches": [item["question"] for item in relevant_knowledge],
         "detected_language": detected_language,
+        "detected_language_code": _language_code(transcript),
         "module_key": business.get("module_key") or "custom",
         "workflow_version": business.get("workflow_version") or "v1",
         "allowed_call_types": business.get("allowed_call_types"),
@@ -346,6 +368,7 @@ def analyze_call(
         "budget": budget,
         "intent": intent,
         "detected_language": detected_language,
+        "detected_language_code": _language_code(transcript),
         "extracted_fields": fields,
         "lead_score": score,
         "lead_temperature": temp,

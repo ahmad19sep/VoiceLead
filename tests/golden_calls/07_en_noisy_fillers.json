@@ -1,0 +1,11 @@
+{
+  "name": "en_noisy_fillers",
+  "language": "en",
+  "description": "English booking with heavy fillers and hesitation; intent must survive noise, no false emergency.",
+  "transcript": "umm hi uh yes so I was er wondering if I could um book a cleaning appointment for uh Saturday morning please... my name is uh Bilal",
+  "expect": {
+    "language_code": "en",
+    "booking_requested": true,
+    "medical_emergency": false
+  }
+}

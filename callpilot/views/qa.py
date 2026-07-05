@@ -39,9 +39,19 @@ def render_qa(query: dict[str, list[str]]) -> str:
         issue_preview = failures[:1] or findings[:1] or ["No issues detected."]
         table_rows += f"""
         <tr>
-          <td><strong>{esc(row['business_name'] or 'Unknown')}</strong><div class="muted">{esc(row['business_type'] or '')}</div></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="avatar">{esc((row['business_name'] or 'Q')[:1].upper())}</span>
+              <div><strong>{esc(row['business_name'] or 'Unknown')}</strong><div class="muted">{esc(row['business_type'] or '')}</div></div>
+            </div>
+          </td>
           <td>{esc(row['customer_name'] or 'Unknown')}</td>
-          <td><strong>{row['qa_score']}/100</strong> {qa_badge(row['qa_status'])}</td>
+          <td>
+            <div class="scorebar">
+              <div class="row"><strong>{row['qa_score']}/100</strong>{qa_badge(row['qa_status'])}</div>
+              <div class="scorebar-track"><span style="width:{min(100, int(row['qa_score'] or 0))}%"></span></div>
+            </div>
+          </td>
           <td>{esc(issue_preview[0])}</td>
           <td>{esc(row['provider'] or '')}</td>
           <td>{format_dt(row['evaluated_at'])}</td>

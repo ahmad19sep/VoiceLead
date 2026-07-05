@@ -1,0 +1,12 @@
+{
+  "name": "ur_emergency_noisy",
+  "language": "ur",
+  "description": "Noisy Roman Urdu emergency with fillers; detection must survive speech-to-text noise.",
+  "transcript": "hello... umm haan ji... meri ammi ko saans nahi aa rahi hai... please jaldi... umm hum aa rahay hain",
+  "expect": {
+    "language_code": "ur",
+    "medical_emergency": true,
+    "handoff_triggered": true,
+    "urgency": "emergency"
+  }
+}

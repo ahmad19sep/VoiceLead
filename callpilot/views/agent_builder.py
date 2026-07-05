@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from ..compliance import audit_event, default_workspace_id
-from .layout import layout
-from ..config import BUSINESS_TYPES, TONE_OPTIONS
+from .layout import layout, metric
+from ..clinic import (
+    default_clinic_profile,
+    get_clinic_holidays,
+    get_clinic_locations,
+    get_clinic_profile,
+    get_clinic_providers,
+    is_clinic_type,
+    save_clinic_setup,
+)
+from ..config import TONE_OPTIONS, business_types_for_mode
 from ..modules import comma, lines, module_by_key, module_for_business_type, module_options
 from ..repositories import get_business, get_knowledge, get_services
 from ..seed import template_for_business_type
@@ -23,22 +32,63 @@ def parse_lines(text: str, parts: int) -> list[list[str]]:
         rows.append(pieces[:parts])
     return rows
 
+
+def parse_service_lines(text: str) -> list[dict[str, object]]:
+    services = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        pieces = [piece.strip() for piece in line.split("|")]
+        if pieces[0].lower() == "service name":
+            continue
+        original_len = len(pieces)
+        while len(pieces) < 8:
+            pieces.append("")
+        if original_len >= 8:
+            name, description, duration, provider_name, location_name, price, bookable, emergency = pieces[:8]
+        else:
+            name, description, price, bookable, emergency = pieces[:5]
+            duration, provider_name, location_name = "30", "", ""
+        try:
+            duration_minutes = int(duration or 30)
+        except ValueError:
+            duration_minutes = 30
+        services.append(
+            {
+                "name": name,
+                "description": description,
+                "duration_minutes": max(5, duration_minutes),
+                "provider_name": provider_name,
+                "location_name": location_name,
+                "price_note": price,
+                "is_bookable": int(bookable or 1),
+                "is_emergency": int(emergency or 0),
+            }
+        )
+    return services
+
 def render_agent_builder(query: dict[str, list[str]]) -> str:
     business_id = int(query.get("business_id", ["0"])[0] or 0)
     with db() as conn:
         business = get_business(conn, business_id) if business_id else None
         services = get_services(conn, business_id) if business_id else []
+        clinic_profile = get_clinic_profile(conn, business_id) if business_id and business and is_clinic_type(business["business_type"]) else default_clinic_profile()
+        clinic_providers = get_clinic_providers(conn, business_id) if business_id and business and is_clinic_type(business["business_type"]) else []
+        clinic_locations = get_clinic_locations(conn, business_id) if business_id and business and is_clinic_type(business["business_type"]) else []
+        clinic_holidays = get_clinic_holidays(conn, business_id) if business_id and business and is_clinic_type(business["business_type"]) else []
         knowledge = [
             row
             for row in (get_knowledge(conn, business_id) if business_id else [])
             if (row.get("source") or "agent_builder") in {"agent_builder", "seed_data"}
         ]
-    template = template_for_business_type(business["business_type"] if business else "Hotel")
-    business_type_value = business["business_type"] if business else "Hotel"
+    default_type = business_types_for_mode()[0]
+    template = template_for_business_type(business["business_type"] if business else default_type)
+    business_type_value = business["business_type"] if business else default_type
     module = module_by_key((business or {}).get("module_key")) if business else module_for_business_type(business_type_value)
     type_options = "".join(
         f'<option value="{esc(item)}" {"selected" if item == business_type_value else ""}>{esc(item)}</option>'
-        for item in BUSINESS_TYPES
+        for item in business_types_for_mode()
     )
     module_select = "".join(
         f'<option value="{esc(key)}" {"selected" if key == module["key"] else ""}>{esc(label)}</option>'
@@ -50,9 +100,21 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
         for item in TONE_OPTIONS
     )
     services_text = "\n".join(
-        f"{s['name']} | {s['description']} | {s['price_note'] or ''} | {s['is_bookable']} | {s['is_emergency']}"
+        f"{s['name']} | {s['description']} | {s['duration_minutes'] or 30} | {s['provider_name'] or ''} | {s['location_name'] or ''} | {s['price_note'] or ''} | {s['is_bookable']} | {s['is_emergency']}"
         for s in services
-    ) or "Service name | Description | Price note | 1 | 0"
+    ) or "Service name | Description | Duration minutes | Provider | Location | Price note | 1 | 0"
+    provider_text = "\n".join(
+        f"{row['name']} | {row['role'] or ''} | {row['specialty'] or ''} | {row['languages'] or ''} | {row['location_name'] or ''} | {row['working_hours'] or ''}"
+        for row in clinic_providers
+    ) or "Name | Role | Specialty | Languages | Location | Working hours"
+    location_text = "\n".join(
+        f"{row['name']} | {row['address'] or ''} | {row['phone'] or ''} | {row['timezone'] or ''} | {row['working_hours'] or ''}"
+        for row in clinic_locations
+    ) or "Name | Address | Phone | Timezone | Working hours"
+    holiday_text = "\n".join(
+        f"{row['holiday_type']} | {row['name']} | {row['date_value'] or row['weekday'] or ''} | {row['start_time'] or ''} | {row['end_time'] or ''} | {row['closed_all_day']}"
+        for row in clinic_holidays
+    ) or "date | Eid closure | 2026-03-20 |  |  | 1\nweekly | Friday half-day | friday | 13:00 | 15:00 | 0"
     faq_text = "\n".join(f"{k['question']} | {k['answer']} | {k['category'] or ''}" for k in knowledge) or (
         "Question | Answer | Category"
     )
@@ -72,9 +134,30 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
     qa_checks = (business or {}).get("qa_checks") or comma(module["qa_checks"])
     workflow_version = (business or {}).get("workflow_version") or "v1"
     content = f"""
-    <section>
-      <h1>Agent Builder</h1>
-      <p class="muted">Create a flexible AI phone agent for any business.</p>
+    <section class="row">
+      <div>
+        <h1>Agent Builder</h1>
+        <p class="muted">Create a flexible AI phone agent for any business.</p>
+      </div>
+      <div class="actions">
+        <a class="btn" href="/businesses">Agents</a>
+        {'<a class="btn primary" href="/demo-call?business_id='+str(business_id)+'">Test Call</a>' if business else ''}
+      </div>
+    </section>
+    <section class="grid metrics">
+      {metric('Mode', 'Edit' if business else 'Create', 'good' if business else '')}
+      {metric('Module', module['label'])}
+      {metric('Services', len(services))}
+      {metric('Knowledge Items', len(knowledge))}
+    </section>
+    <section class="callout" style="margin-top:18px;">
+      <div class="row">
+        <div>
+          <div class="kicker" style="color:rgba(255,255,255,.7);">Production guardrails</div>
+          <h2 style="margin-top:6px;">Configure the workflow before the voice goes live.</h2>
+          <p class="muted" style="margin-bottom:0;">Allowed call types, blocked outcomes, consent rules, QA checks, and handoff paths are saved with each business agent.</p>
+        </div>
+      </div>
     </section>
     <form class="panel pad" method="post" action="{action}" style="margin-top:18px;">
       <h2>Business Info</h2>
@@ -112,8 +195,40 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
         <label class="full">QA checks<input name="qa_checks" value="{esc(qa_checks)}"></label>
       </div>
       <h2 style="margin-top:22px;">Services</h2>
-      <p class="muted">One per line: service name | description | price note | is bookable 1/0 | is emergency 1/0</p>
+      <p class="muted">One per line: service name | description | duration minutes | provider | location | price note | is bookable 1/0 | is emergency 1/0</p>
       <textarea name="services">{esc(services_text)}</textarea>
+      <h2 style="margin-top:22px;">Clinic Profile</h2>
+      <p class="muted">Internal operator setup for C1 clinic onboarding. Applies to Clinic, Hospital, and Dentist businesses.</p>
+      <div class="form-grid" style="margin-top:14px;">
+        <label>Timezone<select name="clinic_timezone">
+          <option value="Asia/Karachi" {"selected" if clinic_profile.get("timezone") == "Asia/Karachi" else ""}>Asia/Karachi</option>
+          <option value="Asia/Dubai" {"selected" if clinic_profile.get("timezone") == "Asia/Dubai" else ""}>Asia/Dubai</option>
+        </select></label>
+        <label>Supported languages<input name="clinic_supported_languages" value="{esc(clinic_profile.get('supported_languages') or 'en,ur')}"></label>
+        <label>Default language<input name="clinic_default_language" value="{esc(clinic_profile.get('default_language') or 'ur')}"></label>
+        <label>Cancellation window hours<input type="number" name="clinic_cancellation_window_hours" value="{esc(clinic_profile.get('cancellation_window_hours') or 24)}"></label>
+        <label>Reminder offset hours<input type="number" name="clinic_reminder_offset_hours" value="{esc(clinic_profile.get('reminder_offset_hours') or 24)}"></label>
+        <label>Recording disclosure<select name="clinic_recording_disclosure_enabled">
+          <option value="1" {"selected" if clinic_profile.get("recording_disclosure_enabled", 1) else ""}>On</option>
+          <option value="0" {"selected" if not clinic_profile.get("recording_disclosure_enabled", 1) else ""}>Off</option>
+        </select></label>
+        <label>Appointment reminders<select name="clinic_reminders_enabled">
+          <option value="0" {"selected" if not clinic_profile.get("reminders_enabled") else ""}>Off</option>
+          <option value="1" {"selected" if clinic_profile.get("reminders_enabled") else ""}>On</option>
+        </select></label>
+        <label class="full">Insurance accepted<textarea name="clinic_insurance_accepted">{esc(clinic_profile.get('insurance_accepted') or '')}</textarea></label>
+        <label class="full">After-hours policy<textarea name="clinic_after_hours_policy">{esc(clinic_profile.get('after_hours_policy') or '')}</textarea></label>
+        <label class="full">Emergency policy<textarea name="clinic_emergency_policy">{esc(clinic_profile.get('emergency_policy') or '')}</textarea></label>
+      </div>
+      <h2 style="margin-top:22px;">Providers / Doctors</h2>
+      <p class="muted">One per line: name | role | specialty | languages | location | working hours</p>
+      <textarea name="clinic_providers">{esc(provider_text)}</textarea>
+      <h2 style="margin-top:22px;">Locations</h2>
+      <p class="muted">One per line: name | address | phone | timezone | working hours</p>
+      <textarea name="clinic_locations">{esc(location_text)}</textarea>
+      <h2 style="margin-top:22px;">Holidays / Closures</h2>
+      <p class="muted">One per line: date/weekly | name | date or weekday | start | end | closed all day 1/0</p>
+      <textarea name="clinic_holidays">{esc(holiday_text)}</textarea>
       <h2 style="margin-top:22px;">Knowledge Base / FAQs</h2>
       <p class="muted">One per line: question | answer | category</p>
       <textarea name="faqs">{esc(faq_text)}</textarea>
@@ -135,9 +250,12 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
     with db() as conn:
         workspace_id = default_workspace_id(conn)
         if business_id:
-            row = conn.execute("select workspace_id from businesses where id = ?", (business_id,)).fetchone()
-            if row and row["workspace_id"]:
-                workspace_id = int(row["workspace_id"])
+            row = conn.execute(
+                "select workspace_id from businesses where id = ? and workspace_id = ?",
+                (business_id, workspace_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("Business not found in the active workspace.")
             conn.execute(
                 """
                 update businesses set name=?, business_type=?, description=?, phone=?, email=?, website=?, location=?,
@@ -146,7 +264,7 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 allowed_call_types=?, blocked_outcomes=?, supported_languages=?, compliance_profile=?,
                 consent_policy=?, recording_disclosure=?, quiet_hours=?, max_outbound_attempts=?,
                 integration_targets=?, qa_checks=?, workflow_version=?, handoff_name=?, handoff_phone=?,
-                handoff_email=?, handoff_instructions=?, updated_at=? where id=?
+                handoff_email=?, handoff_instructions=?, updated_at=? where id=? and workspace_id=?
                 """,
                 (
                     form.get("name"),
@@ -182,6 +300,7 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                     form.get("handoff_instructions"),
                     now(),
                     business_id,
+                    workspace_id,
                 ),
             )
             conn.execute("delete from services where business_id=?", (business_id,))
@@ -274,13 +393,31 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                     now(),
                 ),
             )
-        for name, description, price, bookable, emergency in parse_lines(form.get("services", ""), 5):
-            if name.lower() == "service name" or not name:
+        for service in parse_service_lines(form.get("services", "")):
+            if not service["name"]:
                 continue
             conn.execute(
-                "insert into services (business_id, name, description, price_note, is_bookable, is_emergency) values (?, ?, ?, ?, ?, ?)",
-                (business_id, name, description, price, int(bookable or 1), int(emergency or 0)),
+                """
+                insert into services (
+                    business_id, name, description, price_note, duration_minutes,
+                    provider_name, location_name, is_bookable, is_emergency
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    business_id,
+                    service["name"],
+                    service["description"],
+                    service["price_note"],
+                    service["duration_minutes"],
+                    service["provider_name"],
+                    service["location_name"],
+                    service["is_bookable"],
+                    service["is_emergency"],
+                ),
             )
+        if is_clinic_type(form.get("business_type")):
+            save_clinic_setup(conn, workspace_id, business_id, form)
         faq_rows = [
             (question, answer, category)
             for question, answer, category in parse_lines(form.get("faqs", ""), 3)
@@ -305,11 +442,11 @@ def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
                 """
                 insert into knowledge_base (
                     business_id, document_id, question, answer, category, tags, source,
-                    version, status, approved_at, updated_at, created_at
+                    language, translation_group_id, version, status, approved_at, updated_at, created_at
                 )
-                values (?, ?, ?, ?, ?, ?, 'agent_builder', 1, 'approved', ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, 'agent_builder', 'en', ?, 1, 'approved', ?, ?, ?)
                 """,
-                (business_id, document_id, question, answer, category, category.lower(), now(), now(), now()),
+                (business_id, document_id, question, answer, category, category.lower(), category.lower(), now(), now(), now()),
             )
         create_event(conn, business_id, None, "agent_saved", "Business agent saved from Agent Builder.", {})
         audit_event(conn, workspace_id, "operator", "agent_saved", "business", business_id, {"business_type": form.get("business_type")})

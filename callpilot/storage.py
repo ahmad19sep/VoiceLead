@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+import os
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from .config import DB_PATH
 
 
+def configured_db_path() -> Path:
+    raw = os.environ.get("SQLITE_DB_PATH") or os.environ.get("DB_PATH")
+    if raw:
+        return Path(raw).expanduser()
+    return DB_PATH
+
+
 def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    path = configured_db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("pragma foreign_keys = on")
     return conn
@@ -110,9 +121,82 @@ def init_db() -> None:
                 name text not null,
                 description text,
                 price_note text,
+                duration_minutes integer default 30,
+                provider_name text,
+                location_name text,
                 is_bookable integer default 1,
                 is_emergency integer default 0,
                 created_at text default current_timestamp,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists clinic_profiles (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer not null unique,
+                timezone text default 'Asia/Karachi',
+                supported_languages text default 'en,ur',
+                default_language text default 'ur',
+                insurance_accepted text,
+                cancellation_window_hours integer default 24,
+                after_hours_policy text,
+                emergency_policy text,
+                recording_disclosure_enabled integer default 1,
+                reminders_enabled integer default 0,
+                reminder_offset_hours integer default 24,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists clinic_providers (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer not null,
+                name text not null,
+                role text,
+                specialty text,
+                languages text,
+                location_name text,
+                working_hours text,
+                active integer default 1,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists clinic_locations (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer not null,
+                name text not null,
+                address text,
+                phone text,
+                timezone text default 'Asia/Karachi',
+                working_hours text,
+                active integer default 1,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade
+            );
+
+            create table if not exists clinic_holidays (
+                id integer primary key autoincrement,
+                workspace_id integer not null,
+                business_id integer not null,
+                holiday_type text default 'date',
+                name text not null,
+                date_value text,
+                weekday text,
+                start_time text,
+                end_time text,
+                closed_all_day integer default 1,
+                created_at text default current_timestamp,
+                updated_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
                 foreign key (business_id) references businesses(id) on delete cascade
             );
 
@@ -126,6 +210,8 @@ def init_db() -> None:
                 tags text,
                 source text,
                 embedding_id text,
+                language text default 'en',
+                translation_group_id text,
                 version integer default 1,
                 status text default 'approved',
                 approved_at text,
@@ -396,7 +482,62 @@ def init_db() -> None:
 
             create index if not exists idx_jobs_status_scheduled
                 on jobs(status, scheduled_at);
+
+            create table if not exists clinic_workflow_transitions (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                business_id integer,
+                booking_id integer not null,
+                lead_id integer,
+                workflow_version text default 'clinic-v1',
+                from_status text,
+                to_status text not null,
+                actor text default 'operator',
+                idempotency_key text,
+                note text,
+                metadata text,
+                created_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade,
+                foreign key (booking_id) references bookings(id) on delete cascade,
+                foreign key (lead_id) references leads(id) on delete set null
+            );
+
+            create unique index if not exists idx_clinic_workflow_idempotency
+                on clinic_workflow_transitions(booking_id, idempotency_key);
+
+            create index if not exists idx_clinic_workflow_booking
+                on clinic_workflow_transitions(booking_id, id);
+
+            create table if not exists booking_calendar_syncs (
+                id integer primary key autoincrement,
+                workspace_id integer,
+                business_id integer,
+                booking_id integer not null,
+                provider text,
+                action text not null,
+                status text not null,
+                event_id text,
+                message text,
+                actor text default 'system',
+                created_at text default current_timestamp,
+                foreign key (workspace_id) references workspaces(id) on delete cascade,
+                foreign key (business_id) references businesses(id) on delete cascade,
+                foreign key (booking_id) references bookings(id) on delete cascade
+            );
+
+            create index if not exists idx_booking_calendar_syncs_booking
+                on booking_calendar_syncs(booking_id, id);
             """
+        )
+        ensure_columns(
+            conn,
+            "workspace_users",
+            {
+                "status": "text default 'active'",
+                "updated_at": "text",
+                "password_hash": "text",
+            },
         )
         ensure_columns(
             conn,
@@ -419,7 +560,18 @@ def init_db() -> None:
             },
         )
         ensure_columns(conn, "leads", {"workspace_id": "integer"})
-        ensure_columns(conn, "bookings", {"workspace_id": "integer"})
+        ensure_columns(
+            conn,
+            "bookings",
+            {
+                "workspace_id": "integer",
+                "calendar_provider": "text",
+                "calendar_event_id": "text",
+                "calendar_sync_status": "text default 'none'",
+                "calendar_synced_at": "text",
+                "calendar_message": "text",
+            },
+        )
         ensure_columns(conn, "call_logs", {"workspace_id": "integer"})
         ensure_columns(conn, "call_sessions", {"workspace_id": "integer"})
         ensure_columns(conn, "notifications", {"workspace_id": "integer"})
@@ -433,6 +585,8 @@ def init_db() -> None:
                 "status": "text default 'approved'",
                 "approved_at": "text",
                 "updated_at": "text",
+                "language": "text default 'en'",
+                "translation_group_id": "text",
             },
         )
         conn.execute(
@@ -441,11 +595,22 @@ def init_db() -> None:
         conn.execute(
             "create index if not exists idx_knowledge_documents_business_status on knowledge_documents(business_id, status)"
         )
+        ensure_columns(
+            conn,
+            "services",
+            {
+                "duration_minutes": "integer default 30",
+                "provider_name": "text",
+                "location_name": "text",
+            },
+        )
+        conn.execute("create index if not exists idx_workspace_users_workspace on workspace_users(workspace_id, status)")
 
-        from .compliance import audit_event, default_workspace_id
+        from .compliance import audit_event, default_workspace_id, default_workspace_user
         from .modules import comma, lines, module_for_business_type
 
         workspace_id = default_workspace_id(conn)
+        default_workspace_user(conn, workspace_id)
         conn.execute("update businesses set workspace_id = ? where workspace_id is null", (workspace_id,))
         for table in ["leads", "bookings", "call_logs", "call_sessions", "notifications", "agent_events"]:
             conn.execute(
@@ -525,8 +690,10 @@ def init_db() -> None:
 
             seed_data(conn)
 
+        from .clinic import backfill_clinic_setup
         from .knowledge import backfill_knowledge_documents
         from .qa import backfill_qa_evaluations
 
+        backfill_clinic_setup(conn)
         backfill_knowledge_documents(conn)
         backfill_qa_evaluations(conn)

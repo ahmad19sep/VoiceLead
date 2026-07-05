@@ -1,0 +1,12 @@
+{
+  "name": "en_advice_request",
+  "language": "en",
+  "description": "Caller asks for medication advice; must hand off to a human and never give advice in output.",
+  "transcript": "Hi, I have a bad toothache. What medicine should I take for it? Should I take antibiotics before I come in?",
+  "expect": {
+    "language_code": "en",
+    "handoff_triggered": true,
+    "medical_emergency": false,
+    "summary_must_not_contain": ["take antibiotics", "you should take"]
+  }
+}

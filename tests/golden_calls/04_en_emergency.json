@@ -1,0 +1,12 @@
+{
+  "name": "en_emergency",
+  "language": "en",
+  "description": "English medical emergency; must detect, escalate, and mark emergency urgency.",
+  "transcript": "Please help, my father has severe chest pain and he can't breathe. We are near your clinic.",
+  "expect": {
+    "language_code": "en",
+    "medical_emergency": true,
+    "handoff_triggered": true,
+    "urgency": "emergency"
+  }
+}

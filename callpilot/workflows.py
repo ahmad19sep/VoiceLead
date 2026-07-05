@@ -62,32 +62,38 @@ def create_notification(conn: sqlite3.Connection, business_id: int, lead_id: int
 def create_booking(conn: sqlite3.Connection, business_id: int, lead_id: int, analysis: dict[str, Any]) -> None:
     fields = analysis.get("extracted_fields") or {}
     business = get_business(conn, business_id)
-    conn.execute(
-        """
-        insert into bookings (
-            workspace_id, business_id, lead_id, customer_name, customer_phone, customer_email, booking_type,
-            requested_date, requested_time, number_of_people, service_requested, notes, status, created_at, updated_at
-        )
-        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?)
-        """,
-        (
-            business.get("workspace_id") if business else None,
-            business_id,
-            lead_id,
-            analysis.get("customer_name"),
-            analysis.get("customer_phone"),
-            analysis.get("customer_email"),
-            analysis.get("request_type"),
-            analysis.get("timeline"),
-            fields.get("requested_time"),
-            fields.get("number_of_people"),
-            analysis.get("service_requested"),
-            analysis.get("ai_summary"),
-            now(),
-            now(),
-        ),
+    workspace_id = business.get("workspace_id") if business else None
+    booking_id = int(
+        conn.execute(
+            """
+            insert into bookings (
+                workspace_id, business_id, lead_id, customer_name, customer_phone, customer_email, booking_type,
+                requested_date, requested_time, number_of_people, service_requested, notes, status, created_at, updated_at
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?)
+            """,
+            (
+                workspace_id,
+                business_id,
+                lead_id,
+                analysis.get("customer_name"),
+                analysis.get("customer_phone"),
+                analysis.get("customer_email"),
+                analysis.get("request_type"),
+                analysis.get("timeline"),
+                fields.get("requested_time"),
+                fields.get("number_of_people"),
+                analysis.get("service_requested"),
+                analysis.get("ai_summary"),
+                now(),
+                now(),
+            ),
+        ).lastrowid
     )
     create_event(conn, business_id, lead_id, "booking_created", "Booking request created.", {})
+    from .clinic_workflow import record_initial_state
+
+    record_initial_state(conn, booking_id, business_id, lead_id, "requested", workspace_id)
 
 def create_lead_from_analysis(
     conn: sqlite3.Connection,
@@ -184,6 +190,17 @@ def create_lead_from_analysis(
     if analysis.get("handoff_triggered"):
         create_notification(conn, business_id, lead_id, analysis)
         create_event(conn, business_id, lead_id, "human_handoff_triggered", "Human handoff rule triggered.", {})
+    medical_emergency = (analysis.get("extracted_fields") or {}).get("medical_emergency") or {}
+    if medical_emergency.get("detected"):
+        from .emergency import create_emergency_alert
+
+        create_emergency_alert(
+            conn,
+            business_id,
+            lead_id,
+            medical_emergency,
+            caller_phone or analysis.get("customer_phone"),
+        )
     if qa_result:
         create_event(
             conn,

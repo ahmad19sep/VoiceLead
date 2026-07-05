@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from .compliance import audit_event, default_workspace_id, has_active_consent, is_do_not_call, normalize_phone
+from .compliance import active_workspace_id, audit_event, default_workspace_id, has_active_consent, is_do_not_call, normalize_phone
 from .repositories import get_business
 from .utils import now
 
@@ -128,7 +128,8 @@ def create_campaign(
     return get_campaign(conn, campaign_id) or {"id": campaign_id}
 
 
-def get_campaigns(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def get_campaigns(conn: sqlite3.Connection, workspace_id: int | None = None) -> list[dict[str, Any]]:
+    workspace_id = active_workspace_id(conn, workspace_id)
     rows = conn.execute(
         """
         select campaigns.*, businesses.name as business_name,
@@ -139,29 +140,45 @@ def get_campaigns(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         from campaigns
         left join businesses on businesses.id = campaigns.business_id
         left join campaign_recipients on campaign_recipients.campaign_id = campaigns.id
+        where campaigns.workspace_id = ?
         group by campaigns.id
         order by datetime(campaigns.created_at) desc
-        """
+        """,
+        (workspace_id,),
     ).fetchall()
     return [dict(row) for row in rows]
 
 
-def get_campaign(conn: sqlite3.Connection, campaign_id: int) -> dict[str, Any] | None:
+def get_campaign(
+    conn: sqlite3.Connection,
+    campaign_id: int,
+    workspace_id: int | None = None,
+) -> dict[str, Any] | None:
+    workspace_id = active_workspace_id(conn, workspace_id)
     row = conn.execute(
         """
         select campaigns.*, businesses.name as business_name, businesses.business_type
         from campaigns
         left join businesses on businesses.id = campaigns.business_id
-        where campaigns.id = ?
+        where campaigns.id = ? and campaigns.workspace_id = ?
         """,
-        (campaign_id,),
+        (campaign_id, workspace_id),
     ).fetchone()
     return dict(row) if row else None
 
 
-def get_campaign_recipients(conn: sqlite3.Connection, campaign_id: int) -> list[dict[str, Any]]:
+def get_campaign_recipients(
+    conn: sqlite3.Connection,
+    campaign_id: int,
+    workspace_id: int | None = None,
+) -> list[dict[str, Any]]:
+    workspace_id = active_workspace_id(conn, workspace_id)
     rows = conn.execute(
-        "select * from campaign_recipients where campaign_id = ? order by id",
-        (campaign_id,),
+        """
+        select * from campaign_recipients
+        where campaign_id = ? and workspace_id = ?
+        order by id
+        """,
+        (campaign_id, workspace_id),
     ).fetchall()
     return [dict(row) for row in rows]

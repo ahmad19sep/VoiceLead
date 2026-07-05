@@ -4,13 +4,25 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
+from .compliance import active_workspace_id
+from .config import CLINIC_BUSINESS_TYPES, clinic_mode
 
-def stats(conn: sqlite3.Connection, business_type: str | None = None) -> dict[str, int]:
-    business_clause = ""
-    args: list[Any] = []
+
+def stats(
+    conn: sqlite3.Connection,
+    business_type: str | None = None,
+    workspace_id: int | None = None,
+) -> dict[str, int]:
+    workspace_id = active_workspace_id(conn, workspace_id)
+    business_clause = " where workspace_id = ?"
+    args: list[Any] = [workspace_id]
     if business_type and business_type != "All Businesses":
-        business_clause = " where business_type = ?"
+        business_clause += " and business_type = ?"
         args.append(business_type)
+    elif clinic_mode():
+        placeholders = ",".join("?" for _ in CLINIC_BUSINESS_TYPES)
+        business_clause += f" and business_type in ({placeholders})"
+        args.extend(CLINIC_BUSINESS_TYPES)
     businesses = conn.execute(f"select id from businesses{business_clause}", args).fetchall()
     ids = [row["id"] for row in businesses]
     if ids:

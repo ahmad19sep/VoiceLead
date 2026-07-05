@@ -14,14 +14,23 @@ def render_campaigns(query: dict[str, list[str]]) -> str:
     with db() as conn:
         businesses = get_businesses(conn)
         campaigns = get_campaigns(conn)
+    total_recipients = sum(int(row["total_recipients"] or 0) for row in campaigns)
+    queued_recipients = sum(int(row["queued_recipients"] or 0) for row in campaigns)
+    ready_recipients = sum(int(row["ready_recipients"] or 0) for row in campaigns)
+    suppressed_recipients = sum(int(row["suppressed_recipients"] or 0) for row in campaigns)
     business_options = "".join(
         f'<option value="{b["id"]}">{esc(b["name"])} - {esc(b["business_type"])}</option>' for b in businesses
     )
     rows = "".join(
         f"""
         <tr>
-          <td><strong>{esc(row['name'])}</strong><div class="muted">{esc(row['campaign_type'])}</div></td>
-          <td>{esc(row['business_name'])}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="avatar">{esc((row['name'] or 'C')[:1].upper())}</span>
+              <div><strong>{esc(row['name'])}</strong><div class="muted">{esc(row['campaign_type'])}</div></div>
+            </div>
+          </td>
+          <td><strong>{esc(row['business_name'])}</strong></td>
           <td>{status_badge(row['status'])}</td>
           <td>{row['total_recipients'] or 0}</td>
           <td>{row['queued_recipients'] or 0} queued / {row['ready_recipients'] or 0} ready</td>
@@ -38,6 +47,13 @@ def render_campaigns(query: dict[str, list[str]]) -> str:
       {badge('Plan only', 'status-demo')}
     </section>
     {'<section class="panel pad" style="margin-top:16px;">'+badge('Saved','status-active')+' '+esc(saved)+'</section>' if saved else ''}
+    <section class="grid metrics">
+      {metric('Campaigns', len(campaigns))}
+      {metric('Recipients', total_recipients)}
+      {metric('Queued', queued_recipients, 'warm')}
+      {metric('Ready', ready_recipients, 'good')}
+      {metric('Suppressed', suppressed_recipients, 'hot' if suppressed_recipients else '')}
+    </section>
     <section class="grid two" style="margin-top:18px;">
       <form class="panel pad" method="post" action="/campaigns/create">
         <h2>Create Campaign</h2>

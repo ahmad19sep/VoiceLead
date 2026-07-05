@@ -1,0 +1,12 @@
+{
+  "name": "en_booking_basic",
+  "language": "en",
+  "description": "Plain English booking with name and phone; must book, no emergency, no handoff-only signals.",
+  "transcript": "Hi, my name is Sarah Ahmed. I would like to book a teeth cleaning appointment for next week. My number is 0301 5551234.",
+  "expect": {
+    "language_code": "en",
+    "session_language": "en",
+    "booking_requested": true,
+    "medical_emergency": false
+  }
+}

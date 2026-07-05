@@ -7,6 +7,22 @@ from pathlib import Path
 APP_NAME = "CallPilot AI"
 
 APP_TAGLINE = "Universal AI Calling Agent for Any Business"
+CLINIC_TAGLINE = "Your clinic's AI receptionist - never miss a patient call."
+
+PLATFORM_MODES = {"clinic", "universal"}
+
+
+def platform_mode() -> str:
+    mode = os.environ.get("PLATFORM_MODE", "clinic").strip().lower()
+    return mode if mode in PLATFORM_MODES else "clinic"
+
+
+def clinic_mode() -> bool:
+    return platform_mode() == "clinic"
+
+
+def app_tagline() -> str:
+    return CLINIC_TAGLINE if clinic_mode() else APP_TAGLINE
 
 DB_PATH = Path(__file__).resolve().parent.parent / "callpilot.db"
 
@@ -38,6 +54,12 @@ BUSINESS_TYPES = [
     "Government",
     "Custom",
 ]
+
+CLINIC_BUSINESS_TYPES = ["Clinic", "Hospital", "Dentist"]
+
+
+def business_types_for_mode() -> list[str]:
+    return CLINIC_BUSINESS_TYPES if clinic_mode() else BUSINESS_TYPES
 
 TONE_OPTIONS = [
     "Friendly",

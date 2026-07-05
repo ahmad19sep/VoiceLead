@@ -37,7 +37,12 @@ def render_jobs(query: dict[str, list[str]]) -> str:
         preview = result.get("reason") or result.get("status") or row.get("error") or payload
         table_rows += f"""
         <tr>
-          <td><strong>{esc(row['job_type'])}</strong><div class="muted">{esc(row['resource_type'] or '')} #{esc(row['resource_id'] or '')}</div></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="avatar">{esc((row['job_type'] or 'J')[:1].upper())}</span>
+              <div><strong>{esc(row['job_type'])}</strong><div class="muted">{esc(row['resource_type'] or '')} #{esc(row['resource_id'] or '')}</div></div>
+            </div>
+          </td>
           <td>{status_badge(row['status'])}</td>
           <td>{row['attempts']}/{row['max_attempts']}</td>
           <td>{format_dt(row['scheduled_at'])}</td>
@@ -58,16 +63,25 @@ def render_jobs(query: dict[str, list[str]]) -> str:
       {metric('Completed', counts['completed'], 'good')}
       {metric('Failed', counts['failed'], 'hot' if counts['failed'] else '')}
     </section>
+    <section class="callout" style="margin-top:18px;">
+      <div class="row">
+        <div>
+          <div class="kicker" style="color:rgba(255,255,255,.7);">Worker controls</div>
+          <h2 style="margin-top:6px;">Run due jobs safely</h2>
+          <p class="muted" style="margin-bottom:0;">This prepares campaign recipients and post-call QA work only; it does not auto-dial.</p>
+        </div>
+        <form method="post" action="/jobs/run" class="actions">
+          <button class="btn primary" style="background:#fff;color:var(--deep);border-color:#fff;" type="submit">Run Due Jobs</button>
+          <a class="btn" style="background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.25);" href="/api/jobs">Jobs JSON</a>
+        </form>
+      </div>
+    </section>
     <section class="panel pad" style="margin-top:18px;">
-      <form method="post" action="/jobs/run" class="actions">
-        <button class="btn primary" type="submit">Run Due Jobs</button>
-        <a class="btn" href="/api/jobs">Jobs JSON</a>
+      <form method="get" class="actions">
+        <select style="max-width:180px" name="status">{options}</select>
+        <button class="btn" type="submit">Filter</button>
       </form>
     </section>
-    <form method="get" class="panel pad actions" style="margin-top:18px;">
-      <select style="max-width:180px" name="status">{options}</select>
-      <button class="btn" type="submit">Filter</button>
-    </form>
     <section class="panel table-wrap" style="margin-top:18px;">
       <table><thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Scheduled</th><th>Finished</th><th>Result</th></tr></thead><tbody>{table_rows or '<tr><td colspan="6">No jobs yet.</td></tr>'}</tbody></table>
     </section>

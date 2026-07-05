@@ -1,0 +1,15 @@
+.agents/
+.git/
+.github/
+__pycache__/
+*.py[cod]
+*.log
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+.DS_Store
+docs/
+tests/
+VoiceLead CRM Project Overview.pdf

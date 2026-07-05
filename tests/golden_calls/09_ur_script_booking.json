@@ -1,0 +1,11 @@
+{
+  "name": "ur_script_booking",
+  "language": "ur",
+  "description": "Urdu-script booking request; script-based detection must route to Urdu.",
+  "transcript": "السلام علیکم، مجھے ڈاکٹر صاحب سے ملنے کے لیے وقت چاہیے۔ کیا کل appointment مل سکتی ہے؟ شکریہ",
+  "expect": {
+    "language_code": "ur",
+    "session_language": "ur",
+    "medical_emergency": false
+  }
+}

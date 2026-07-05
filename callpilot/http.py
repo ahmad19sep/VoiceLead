@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from .analysis import analyze_call
+from .auth import auth_required, authenticate
 from .campaigns import create_campaign, get_campaign_recipients, get_campaigns
 from .compliance import (
     add_dnc_entry,
@@ -18,14 +19,19 @@ from .compliance import (
     get_consent_records,
     get_dnc_entries,
     get_staff_contacts,
-    get_workspace,
     outbound_allowed,
     record_consent,
+    role_allows,
+    set_request_context,
+    workspace_context,
 )
-from .config import SCORE_RULES
+from .calendar import calendar_statuses
+from .clinic_workflow import WorkflowError, apply_booking_transition
+from .voice_runtime import build_runtime_session, runtime_status
+from .config import SCORE_RULES, clinic_mode
 from .jobs import get_jobs, run_due_jobs
 from .knowledge import ingest_knowledge_document, search_knowledge
-from .modules import INDUSTRY_MODULES, module_by_key
+from .modules import module_by_key, visible_modules
 from .providers import create_outbound_call, provider_by_key, provider_statuses
 from .repositories import (
     get_business,
@@ -37,7 +43,8 @@ from .repositories import (
     get_services,
     production_readiness,
 )
-from .security import system_readiness, twilio_signature_required, validate_twilio_signature
+from .security import health_probe, readiness_probe, system_readiness, twilio_signature_required, validate_twilio_signature
+from .sessions import build_session_cookie, session_from_cookie_header
 from .storage import db
 from .telephony import (
     app_url,
@@ -48,6 +55,7 @@ from .telephony import (
     twilio_gather_twiml,
 )
 from .utils import lead_temperature, now
+from .views.auth_pages import render_login
 from .views import (
     render_agent_builder,
     render_admin_health,
@@ -83,11 +91,21 @@ class CallPilotHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stdout.write("%s - %s\n" % (self.address_string(), fmt % args))
 
+    def send_security_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'",
+        )
+
     def send_html(self, content: str, status: int = 200) -> None:
         body = content.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -96,6 +114,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -104,13 +123,110 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/xml; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
-    def redirect(self, location: str) -> None:
+    def redirect(self, location: str, cookie: str | None = None) -> None:
         self.send_response(303)
         self.send_header("Location", location)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_security_headers()
         self.end_headers()
+
+    PUBLIC_PATHS = {"/login", "/healthz", "/readyz"}
+    WEBHOOK_PATHS = {"/api/twilio/voice", "/api/twilio/gather"}
+
+    def apply_request_context(self) -> None:
+        session = session_from_cookie_header(self.headers.get("Cookie"))
+        self.session = session
+        workspace_id = None
+        try:
+            workspace_id = int(session.get("workspace_id") or 0) or None
+        except (TypeError, ValueError):
+            workspace_id = None
+        user_email = str(session.get("user_email") or "").strip().lower() or None
+        set_request_context(workspace_id, user_email)
+
+    def is_authenticated(self) -> bool:
+        return bool(self.session.get("authenticated") and self.session.get("user_email"))
+
+    def require_login(self, path: str) -> bool:
+        """Return True when the request may proceed."""
+        if not auth_required():
+            return True
+        if path in self.PUBLIC_PATHS or path in self.WEBHOOK_PATHS:
+            return True
+        if self.is_authenticated():
+            return True
+        if path.startswith("/api/"):
+            self.send_json({"success": False, "error": "Authentication required"}, 401)
+        else:
+            self.redirect("/login")
+        return False
+
+    def permission_for_post_route(self, path: str) -> str | None:
+        exact = {
+            "/agent-builder/create": "manage_agents",
+            "/demo-call/analyze": "place_calls",
+            "/real-calling/outbound": "place_calls",
+            "/campaigns/create": "manage_campaigns",
+            "/jobs/run": "run_jobs",
+            "/knowledge/ingest": "manage_agents",
+            "/compliance/consent": "manage_compliance",
+            "/compliance/dnc": "manage_compliance",
+            "/settings/update": "manage_workspace",
+            "/api/ai/analyze-call": "place_calls",
+        }
+        if path in exact:
+            return exact[path]
+        regex_permissions = [
+            (r"/agent-builder/\d+/update", "manage_agents"),
+            (r"/leads/\d+/status", "place_calls"),
+            (r"/leads/\d+/handoff", "place_calls"),
+            (r"/leads/\d+/delete", "manage_agents"),
+            (r"/bookings/\d+/status", "place_calls"),
+        ]
+        for pattern, permission in regex_permissions:
+            if re.fullmatch(pattern, path):
+                return permission
+        return None
+
+    def require_permission(self, permission: str, path: str) -> bool:
+        with db() as conn:
+            context = workspace_context(conn)
+            user = context["current_user"]
+            allowed = role_allows(user.get("role"), permission)
+            if allowed:
+                return True
+            workspace = context["workspace"] or {}
+            audit_event(
+                conn,
+                workspace.get("id"),
+                "operator",
+                "permission_denied",
+                "http_route",
+                path,
+                {"permission": permission, "user_email": user.get("email"), "role": user.get("role")},
+            )
+        if path.startswith("/api/"):
+            self.send_json({"success": False, "error": "Forbidden", "required_permission": permission}, 403)
+        else:
+            self.send_html(
+                "<!doctype html><html><head><title>Forbidden</title></head>"
+                "<body><h1>Forbidden</h1><p>Your workspace role cannot perform this action.</p></body></html>",
+                403,
+            )
+        return False
+
+    def current_user_allows(self, permission: str) -> bool:
+        with db() as conn:
+            context = workspace_context(conn)
+            return role_allows(context["current_user"].get("role"), permission)
+
+    def send_clinic_hidden(self) -> None:
+        self.send_html(render_not_found(), 404)
 
     def body_bytes(self) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -125,20 +241,43 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         return json.loads(raw) if raw.strip() else {}
 
     def do_GET(self) -> None:
+        self.apply_request_context()
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
+        if not self.require_login(path):
+            return
+        if path == "/login":
+            if not auth_required() or self.is_authenticated():
+                self.redirect("/")
+                return
+            self.send_html(render_login())
+            return
         if path == "/":
             self.send_html(render_dashboard(query))
+        elif path == "/healthz":
+            self.send_json(health_probe())
+        elif path == "/readyz":
+            probe = readiness_probe()
+            self.send_json(probe, 200 if probe["success"] else 503)
         elif path == "/businesses":
             self.send_html(render_businesses())
         elif re.fullmatch(r"/businesses/\d+", path):
             self.send_html(render_business_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/modules":
+            if clinic_mode():
+                self.send_clinic_hidden()
+                return
             self.send_html(render_modules())
         elif re.fullmatch(r"/modules/[a-z0-9_]+", path):
+            if clinic_mode():
+                self.send_clinic_hidden()
+                return
             self.send_html(render_module_detail(path.rsplit("/", 1)[1]))
         elif path == "/agent-builder":
+            if clinic_mode() and not self.current_user_allows("manage_agents"):
+                self.send_clinic_hidden()
+                return
             self.send_html(render_agent_builder(query))
         elif path == "/knowledge":
             self.send_html(render_knowledge(query))
@@ -149,17 +288,26 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/real-calling":
             self.send_html(render_real_calling(query))
         elif path == "/campaigns":
+            if clinic_mode():
+                self.send_clinic_hidden()
+                return
             self.send_html(render_campaigns(query))
         elif re.fullmatch(r"/campaigns/\d+", path):
+            if clinic_mode():
+                self.send_clinic_hidden()
+                return
             self.send_html(render_campaign_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/jobs":
+            if clinic_mode() and not self.current_user_allows("run_jobs"):
+                self.send_clinic_hidden()
+                return
             self.send_html(render_jobs(query))
         elif path == "/leads":
             self.send_html(render_leads(query))
         elif re.fullmatch(r"/leads/\d+", path):
             self.send_html(render_lead_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/bookings":
-            self.send_html(render_bookings())
+            self.send_html(render_bookings(query.get("error", [None])[0]))
         elif path == "/calls":
             self.send_html(render_calls())
         elif path == "/qa":
@@ -169,6 +317,9 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/compliance":
             self.send_html(render_compliance(query))
         elif path == "/admin":
+            if clinic_mode():
+                self.send_clinic_hidden()
+                return
             self.send_html(render_admin_health())
         elif path == "/settings":
             self.send_html(render_settings(query.get("saved", ["0"])[0] == "1"))
@@ -185,31 +336,57 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_json(
                 {
                     "success": True,
-                    "modules": [{"key": key, **module} for key, module in INDUSTRY_MODULES.items()],
+                    "modules": [{"key": key, **module} for key, module in visible_modules().items()],
                 }
             )
         elif re.fullmatch(r"/api/modules/[a-z0-9_]+", path):
             key = path.rsplit("/", 1)[1]
-            if key not in INDUSTRY_MODULES:
+            if key not in visible_modules():
                 self.send_json({"success": False, "error": "Module not found"}, 404)
                 return
             self.send_json({"success": True, "module": module_by_key(key)})
         elif path == "/api/compliance/summary":
             with db() as conn:
+                context = workspace_context(conn)
                 self.send_json(
                     {
                         "success": True,
-                        "workspace": get_workspace(conn),
+                        "workspace": context["workspace"],
+                        "current_user": context["current_user"],
+                        "workspace_users": context["users"],
+                        "role_permissions": context["role_permissions"],
                         "staff_contacts": get_staff_contacts(conn),
                         "consent_records": get_consent_records(conn),
                         "do_not_call": get_dnc_entries(conn),
                         "audit_logs": get_audit_logs(conn),
                     }
                 )
+        elif path == "/api/workspace":
+            with db() as conn:
+                self.send_json({"success": True, **workspace_context(conn)})
         elif path == "/api/admin/health":
             self.send_json({"success": True, **system_readiness()})
         elif path == "/api/providers":
             self.send_json({"success": True, "providers": provider_statuses()})
+        elif path == "/api/calendar":
+            self.send_json({"success": True, "calendars": calendar_statuses()})
+        elif path == "/api/voice-runtime":
+            business_id = int(query.get("business_id", ["0"])[0] or 0)
+            if not business_id:
+                self.send_json({"success": True, "runtime": runtime_status()})
+            else:
+                with db() as conn:
+                    try:
+                        session = build_runtime_session(
+                            conn,
+                            business_id,
+                            caller_text=query.get("text", [None])[0],
+                            requested_language=query.get("language", [None])[0],
+                        )
+                    except ValueError:
+                        self.send_json({"success": False, "error": "Business not found"}, 404)
+                        return
+                self.send_json({"success": True, "session": session})
         elif re.fullmatch(r"/api/providers/[a-z0-9_]+", path):
             key = path.rsplit("/", 1)[1]
             provider = provider_by_key(key)
@@ -221,19 +398,27 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             with db() as conn:
                 self.send_json({"success": True, "evaluations": get_qa_evaluations(conn, query.get("status", ["all"])[0])})
         elif path == "/api/campaigns":
+            if clinic_mode():
+                self.send_json({"success": False, "error": "Feature deferred in clinic mode"}, 404)
+                return
             with db() as conn:
                 self.send_json({"success": True, "campaigns": get_campaigns(conn)})
         elif path == "/api/jobs":
+            if clinic_mode() and not self.current_user_allows("run_jobs"):
+                self.send_json({"success": False, "error": "Feature hidden in clinic mode"}, 404)
+                return
             with db() as conn:
                 self.send_json({"success": True, "jobs": get_jobs(conn, query.get("status", ["all"])[0])})
         elif path == "/api/knowledge/search":
             business_id = int(query.get("business_id", ["0"])[0] or 0)
+            language = query.get("language", ["en"])[0]
             with db() as conn:
                 self.send_json(
                     {
                         "success": True,
                         "business_id": business_id,
-                        "results": search_knowledge(conn, business_id, query.get("q", [""])[0]) if business_id else [],
+                        "language": language,
+                        "results": search_knowledge(conn, business_id, query.get("q", [""])[0], language) if business_id else [],
                     }
                 )
         elif path == "/api/twilio/voice":
@@ -242,9 +427,73 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_not_found(), 404)
 
     def do_POST(self) -> None:
+        self.apply_request_context()
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
+        if not self.require_login(path):
+            return
+        if path == "/login":
+            form = self.form()
+            email = form.get("email", "")
+            password = form.get("password", "")
+            client_ip = self.client_address[0] if self.client_address else "unknown"
+            with db() as conn:
+                user, message = authenticate(conn, email, password, client_ip)
+            if not user:
+                self.send_html(render_login(message, email), 401)
+                return
+            cookie = build_session_cookie(
+                {
+                    "workspace_id": int(user["workspace_id"]),
+                    "user_email": user["email"],
+                    "authenticated": True,
+                }
+            )
+            self.redirect("/", cookie)
+            return
+        if path == "/logout":
+            with db() as conn:
+                context = workspace_context(conn)
+                audit_event(
+                    conn,
+                    (context["workspace"] or {}).get("id"),
+                    "operator",
+                    "logout",
+                    "workspace_user",
+                    context["current_user"].get("email"),
+                    {},
+                )
+            self.redirect("/login" if auth_required() else "/", build_session_cookie({}, max_age=0))
+            return
+        if path == "/workspace/switch":
+            form = self.form()
+            try:
+                workspace_id = int(form.get("workspace_id") or 0)
+            except ValueError:
+                workspace_id = 0
+            with db() as conn:
+                context = workspace_context(conn, workspace_id or None)
+                workspace = context["workspace"]
+                current_user = context["current_user"]
+                if not workspace:
+                    self.redirect("/compliance?saved=workspace+not+found")
+                    return
+                cookie = build_session_cookie(
+                    {
+                        "workspace_id": int(workspace["id"]),
+                        "user_email": current_user.get("email"),
+                        "authenticated": bool(self.session.get("authenticated")),
+                    }
+                )
+            self.redirect(form.get("next") or "/", cookie)
+            return
+        permission = self.permission_for_post_route(path)
+        if permission and not self.require_permission(permission, path):
+            return
+        if clinic_mode() and path == "/campaigns/create":
+            self.send_clinic_hidden()
+            return
         if path == "/agent-builder/create":
             business_id = save_agent(self.form())
             self.redirect(f"/businesses/{business_id}")
@@ -313,7 +562,10 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.redirect(f"/campaigns/{campaign['id']}?saved=queued+{queued}+suppressed+{suppressed}")
             return
         if path == "/jobs/run":
+            from .reminders import schedule_appointment_reminders
+
             with db() as conn:
+                schedule_appointment_reminders(conn)
                 results = run_due_jobs(conn)
             self.redirect(f"/jobs?ran={len(results)}")
             return
@@ -362,8 +614,15 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             if status not in {"new", "contacted", "follow_up", "won", "lost"}:
                 status = "new"
             with db() as conn:
-                conn.execute("update leads set status=?, updated_at=? where id=?", (status, now(), lead_id))
                 lead = get_lead(conn, lead_id)
+                if not lead:
+                    self.redirect("/leads")
+                    return
+                workspace_id = int(lead["workspace_id"] or default_workspace_id(conn))
+                conn.execute(
+                    "update leads set status=?, updated_at=? where id=? and workspace_id=?",
+                    (status, now(), lead_id, workspace_id),
+                )
                 create_event(conn, lead["business_id"] if lead else None, lead_id, "status_changed", f"Lead status changed to {status}.", {"status": status})
             self.redirect(f"/leads/{lead_id}")
             return
@@ -382,23 +641,40 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                         "recommended_action": lead["recommended_action"],
                     }
                     create_notification(conn, lead["business_id"], lead_id, analysis)
-                    conn.execute("update leads set handoff_triggered=1 where id=?", (lead_id,))
+                    workspace_id = int(lead["workspace_id"] or default_workspace_id(conn))
+                    conn.execute(
+                        "update leads set handoff_triggered=1 where id=? and workspace_id=?",
+                        (lead_id, workspace_id),
+                    )
             self.redirect(f"/leads/{lead_id}")
             return
         delete_match = re.fullmatch(r"/leads/(\d+)/delete", path)
         if delete_match:
             lead_id = int(delete_match.group(1))
             with db() as conn:
-                conn.execute("delete from leads where id=?", (lead_id,))
+                workspace_id = default_workspace_id(conn)
+                conn.execute("delete from leads where id=? and workspace_id=?", (lead_id, workspace_id))
             self.redirect("/leads")
             return
         booking_match = re.fullmatch(r"/bookings/(\d+)/status", path)
         if booking_match:
             booking_id = int(booking_match.group(1))
-            status = self.form().get("status", "requested")
+            form = self.form()
+            status = form.get("status", "requested")
+            idempotency_key = (form.get("idempotency_key") or "").strip() or None
             with db() as conn:
-                conn.execute("update bookings set status=?, updated_at=? where id=?", (status, now(), booking_id))
-            self.redirect("/bookings")
+                try:
+                    apply_booking_transition(
+                        conn,
+                        booking_id,
+                        status,
+                        actor="operator",
+                        idempotency_key=idempotency_key,
+                        note=form.get("note") or None,
+                    )
+                    self.redirect("/bookings")
+                except WorkflowError:
+                    self.redirect("/bookings?error=invalid_transition")
             return
         if path == "/settings/update":
             form = self.form()

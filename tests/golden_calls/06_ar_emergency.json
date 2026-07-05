@@ -1,0 +1,12 @@
+{
+  "name": "ar_emergency",
+  "language": "ar",
+  "description": "Arabic medical emergency; trilingual detection must escalate.",
+  "transcript": "أرجوكم المساعدة، والدي يعاني من ألم في الصدر ولا أستطيع التنفس معه من الخوف",
+  "expect": {
+    "language_code": "ar",
+    "medical_emergency": true,
+    "handoff_triggered": true,
+    "urgency": "emergency"
+  }
+}

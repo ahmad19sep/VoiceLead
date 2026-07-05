@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .errors import render_not_found
-from .layout import layout
+from .layout import layout, metric
 from ..config import SCORE_LABELS, SCORE_RULES
 from ..repositories import get_businesses, get_events, get_lead, get_leads, get_qa_for_lead
 from ..storage import db
@@ -19,6 +19,11 @@ def render_leads(query: dict[str, list[str]]) -> str:
     with db() as conn:
         leads = get_leads(conn, filters)
         businesses = get_businesses(conn)
+    total = len(leads)
+    hot = sum(1 for lead in leads if lead["lead_temperature"] == "hot")
+    warm = sum(1 for lead in leads if lead["lead_temperature"] == "warm")
+    booking = sum(1 for lead in leads if lead["booking_requested"])
+    handoff = sum(1 for lead in leads if lead["handoff_triggered"])
     business_options = '<option value="">All Businesses</option>' + "".join(
         f'<option value="{b["id"]}" {"selected" if str(b["id"]) == filters["business_id"] else ""}>{esc(b["name"])}</option>'
         for b in businesses
@@ -34,11 +39,24 @@ def render_leads(query: dict[str, list[str]]) -> str:
     rows = "".join(
         f"""
         <tr>
-          <td><strong>{esc(lead['customer_name'] or 'Unknown')}</strong></td>
-          <td>{esc(lead['business_name'])}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="avatar">{esc((lead['customer_name'] or 'U')[:1].upper())}</span>
+              <div>
+                <strong>{esc(lead['customer_name'] or 'Unknown')}</strong>
+                <div class="muted">{format_dt(lead['created_at'])}</div>
+              </div>
+            </div>
+          </td>
+          <td><strong>{esc(lead['business_name'])}</strong><div class="muted">{esc(lead['business_type'])}</div></td>
           <td>{esc(lead['customer_phone'] or lead['customer_email'] or 'Missing')}</td>
           <td>{esc(lead['request_type'] or lead['service_requested'] or 'Request')}</td>
-          <td><strong>{lead['lead_score']}</strong> {temp_badge(lead['lead_temperature'])}</td>
+          <td>
+            <div class="scorebar">
+              <div class="row"><strong>{lead['lead_score']}</strong>{temp_badge(lead['lead_temperature'])}</div>
+              <div class="scorebar-track"><span style="width:{min(100, int(lead['lead_score'] or 0))}%"></span></div>
+            </div>
+          </td>
           <td>{status_badge(lead['status'])}</td>
           <td>{'Yes' if lead['booking_requested'] else 'No'}</td>
           <td>{'Yes' if lead['handoff_triggered'] else 'No'}</td>
@@ -49,6 +67,13 @@ def render_leads(query: dict[str, list[str]]) -> str:
     )
     content = f"""
     <section class="row"><div><h1>Leads CRM</h1><p class="muted">Universal lead inbox for all business agents.</p></div><a class="btn primary" href="/demo-call">Create Lead From Demo Call</a></section>
+    <section class="grid metrics">
+      {metric('Filtered Leads', total)}
+      {metric('Hot Leads', hot, 'hot')}
+      {metric('Warm Leads', warm, 'warm')}
+      {metric('Bookings', booking, 'good')}
+      {metric('Handoffs', handoff, 'hot' if handoff else '')}
+    </section>
     <form method="get" class="panel pad actions" style="margin-top:18px;">
       <input style="max-width:240px" name="q" value="{esc(filters['q'])}" placeholder="Search leads">
       <select style="max-width:220px" name="business_id">{business_options}</select>
@@ -67,7 +92,15 @@ def render_lead_detail(lead_id: int) -> str:
             return render_not_found()
         events = get_events(conn, lead_id)
         qa_rows = get_qa_for_lead(conn, lead_id)
-        booking = conn.execute("select * from bookings where lead_id = ? order by id desc limit 1", (lead_id,)).fetchone()
+        booking = conn.execute(
+            """
+            select * from bookings
+            where lead_id = ? and workspace_id = ?
+            order by id desc
+            limit 1
+            """,
+            (lead_id, lead["workspace_id"]),
+        ).fetchone()
     breakdown = from_json(lead.get("score_breakdown"), {})
     safety = from_json(lead.get("safety_notes"), [])
     extracted = from_json(lead.get("extracted_fields"), {})

@@ -1,3 +1,5 @@
-# The app core is Python stdlib only. This single dependency provides RS256
-# signing for Google service-account authentication (live Calendar sync).
+# The app core is Python stdlib. These dependencies provide:
+# - cryptography: RS256 signing for Google service-account auth (live Calendar sync)
+# - anthropic: real AI call analysis with Claude
 cryptography>=42
+anthropic>=0.116

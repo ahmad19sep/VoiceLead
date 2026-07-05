@@ -113,6 +113,19 @@ class OpenAIProvider(EnvProviderAdapter):
     requirements = ("OPENAI_API_KEY", "model/runtime adapter")
 
 
+class AnthropicProvider(EnvProviderAdapter):
+    key = "anthropic"
+    name = "Anthropic Claude"
+    category = "ai"
+    env_keys = ("ANTHROPIC_API_KEY",)
+    capabilities = ("call_analysis", "structured_extraction", "multilingual")
+    requirements = ("ANTHROPIC_API_KEY",)
+
+    def production_ready(self) -> bool:
+        # The live analysis adapter is implemented; a key makes it real.
+        return self.connected()
+
+
 class VapiProvider(EnvProviderAdapter):
     key = "vapi"
     name = "Vapi"
@@ -191,6 +204,7 @@ def provider_registry() -> dict[str, ProviderAdapter]:
     providers: list[ProviderAdapter] = [
         TwilioVoiceProvider(),
         OpenAIProvider(),
+        AnthropicProvider(),
         VapiProvider(),
         RetellProvider(),
         DeepgramProvider(),

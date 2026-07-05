@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from .analysis import analyze_call
+from .ai_analysis import analyze_call_smart
 from .auth import auth_required, authenticate
 from .campaigns import create_campaign, get_campaign_recipients, get_campaigns
 from .compliance import (
@@ -516,7 +516,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 if not business:
                     self.redirect("/demo-call")
                     return
-                analysis = analyze_call(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
+                analysis = analyze_call_smart(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
                 lead = create_lead_from_analysis(conn, business_id, transcript, analysis, provider="demo")
             self.redirect(f"/leads/{lead['id']}")
             return
@@ -702,7 +702,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 if not business:
                     self.send_json({"success": False, "error": "Business not found"}, 404)
                     return
-                analysis = analyze_call(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
+                analysis = analyze_call_smart(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
             self.send_json(analysis)
             return
         if path == "/api/voice/webhook":
@@ -714,7 +714,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 if not business:
                     self.send_json({"success": False, "error": "Business not found"}, 404)
                     return
-                analysis = analyze_call(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
+                analysis = analyze_call_smart(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
                 lead = create_lead_from_analysis(
                     conn,
                     business_id,
@@ -811,7 +811,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             transcript = (session.get("transcript") or "").strip()
             transcript = (transcript + "\n" if transcript else "") + f"Caller: {speech}"
             turn_count = int(session.get("turn_count") or 0) + 1
-            analysis = analyze_call(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
+            analysis = analyze_call_smart(transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id))
             if not analysis.get("customer_phone") and caller_phone:
                 analysis["customer_phone"] = caller_phone
                 analysis["score_breakdown"]["contact_detail"] = SCORE_RULES["contact_detail"]

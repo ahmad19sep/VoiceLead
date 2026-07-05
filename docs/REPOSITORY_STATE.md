@@ -42,7 +42,7 @@ The current tenant foundation includes a default workspace, default owner user, 
 ## Demo-Only Behavior
 
 - SQLite is the development database; PostgreSQL and migrations are not implemented.
-- Mock AI analysis is used; OpenAI/Anthropic/realtime runtime adapters are not implemented.
+- Real Claude call analysis is live when `ANTHROPIC_API_KEY` is set (`callpilot/ai_analysis.py`): structured extraction via the Anthropic SDK (model from `ANTHROPIC_MODEL`, default `claude-opus-4-8`), grounding guards that discard hallucinated contact details, and safety flags that only ratchet up (Claude can add emergencies/handoffs but never clear the deterministic ones). Without a key, or on any API error, analysis honestly falls back to the rule-based engine and reports `ai_provider: rule_based`. OpenAI/realtime runtime adapters are not implemented.
 - Google Calendar sync is live when `GOOGLE_CALENDAR_ID`/`GOOGLE_CALENDAR_CREDENTIALS` are configured: confirmed bookings create real events (real event ids), reschedules patch them, cancellations delete them; without valid credentials the sync stays honestly pending.
 - Demo call simulator creates local leads and bookings; these are not production success states.
 - Twilio webhooks exist with signature verification support; recording consent controls and production call billing records are not complete.

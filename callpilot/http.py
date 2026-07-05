@@ -137,7 +137,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     PUBLIC_PATHS = {"/login", "/healthz", "/readyz"}
-    WEBHOOK_PATHS = {"/api/twilio/voice", "/api/twilio/gather"}
+    WEBHOOK_PATHS = {"/api/twilio/voice", "/api/twilio/gather", "/api/vapi/webhook"}
 
     def apply_request_context(self) -> None:
         session = session_from_cookie_header(self.headers.get("Cookie"))
@@ -748,7 +748,82 @@ class CallPilotHandler(BaseHTTPRequestHandler):
                 return
             self.handle_twilio_gather(query, form)
             return
+        if path == "/api/vapi/webhook":
+            self.handle_vapi_webhook(query)
+            return
         self.send_html(render_not_found(), 404)
+
+    def handle_vapi_webhook(self, query: dict[str, list[str]]) -> None:
+        """Ingest Vapi server messages. End-of-call reports become leads."""
+        import os
+
+        secret = (os.environ.get("VAPI_WEBHOOK_SECRET") or "").strip()
+        provided = (self.headers.get("X-Vapi-Secret") or "").strip()
+        if secret and provided != secret:
+            self.send_json({"success": False, "error": "Invalid webhook secret"}, 403)
+            return
+        try:
+            body = self.json_body()
+        except Exception:
+            self.send_json({"success": False, "error": "Invalid JSON"}, 400)
+            return
+        message = body.get("message") or {}
+        message_type = message.get("type") or ""
+        if message_type != "end-of-call-report":
+            # Status updates, transcripts-in-progress, etc. are acknowledged and ignored.
+            self.send_json({"success": True, "handled": False, "type": message_type})
+            return
+
+        call = message.get("call") or {}
+        artifact = message.get("artifact") or {}
+        transcript = (artifact.get("transcript") or message.get("transcript") or "").strip()
+        caller_phone = ((call.get("customer") or {}).get("number")
+                        or (message.get("customer") or {}).get("number"))
+        call_id = call.get("id") or message.get("id")
+        recording_url = artifact.get("recordingUrl") or message.get("recordingUrl")
+        business_id = int((query.get("business_id") or ["0"])[0] or 0)
+
+        with db() as conn:
+            if not business_id:
+                row = conn.execute(
+                    "select id from businesses where business_type in ('Clinic','Hospital','Dentist') order by id limit 1"
+                ).fetchone()
+                business_id = int(row["id"]) if row else 1
+            business = get_business(conn, business_id)
+            if not business:
+                self.send_json({"success": False, "error": "Business not found"}, 404)
+                return
+            if not transcript:
+                audit_event(conn, business.get("workspace_id"), "system", "vapi_report_without_transcript",
+                            "call", call_id, {})
+                self.send_json({"success": True, "handled": False, "reason": "no_transcript"})
+                return
+            if not secret:
+                audit_event(conn, business.get("workspace_id"), "system", "vapi_webhook_unverified",
+                            "call", call_id, {"warning": "VAPI_WEBHOOK_SECRET is not set"})
+            existing = conn.execute(
+                "select lead_id from call_logs where provider='vapi' and call_id=? and call_id is not null",
+                (call_id,),
+            ).fetchone()
+            if existing:
+                self.send_json({"success": True, "handled": False, "reason": "duplicate", "lead_id": existing["lead_id"]})
+                return
+            analysis = analyze_call_smart(
+                transcript, business, get_services(conn, business_id), get_knowledge(conn, business_id)
+            )
+            if not analysis.get("customer_phone") and caller_phone:
+                analysis["customer_phone"] = caller_phone
+            lead = create_lead_from_analysis(
+                conn,
+                business_id,
+                transcript,
+                analysis,
+                provider="vapi",
+                call_id=call_id,
+                caller_phone=caller_phone,
+                recording_url=recording_url,
+            )
+        self.send_json({"success": True, "handled": True, "lead_id": lead["id"]})
 
     def validate_twilio_or_send_error(self, query: dict[str, list[str]], form: dict[str, str]) -> bool:
         signature = self.headers.get("X-Twilio-Signature")

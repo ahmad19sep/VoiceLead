@@ -131,8 +131,11 @@ class VapiProvider(EnvProviderAdapter):
     name = "Vapi"
     category = "voice_runtime"
     env_keys = ("VAPI_API_KEY",)
-    capabilities = ("voice_agent_runtime", "inbound_voice", "outbound_voice", "transfer")
-    requirements = ("VAPI_API_KEY", "webhook signing policy", "provider adapter")
+    # End-of-call webhook ingest is implemented (/api/vapi/webhook); with a key
+    # plus a dashboard-configured assistant/number, real calls become leads.
+    ready_requires_adapter = False
+    capabilities = ("voice_agent_runtime", "inbound_voice", "end_of_call_report_ingest")
+    requirements = ("VAPI_API_KEY", "VAPI_WEBHOOK_SECRET", "assistant + number configured in Vapi dashboard")
 
 
 class RetellProvider(EnvProviderAdapter):

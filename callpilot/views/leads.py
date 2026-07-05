@@ -85,6 +85,25 @@ def render_leads(query: dict[str, list[str]]) -> str:
     """
     return layout("Leads", "Leads", content)
 
+def ai_engine_badge(extracted: dict) -> str:
+    provider = (extracted.get("ai_provider") or "").strip()
+    if not provider:
+        return ""
+    if provider == "rule_based":
+        return '<span class="badge">Engine: rule-based</span>'
+    return f'<span class="badge good">Engine: {esc(provider)}</span>'
+
+
+def ai_error_note(extracted: dict) -> str:
+    error = (extracted.get("ai_error") or "").strip()
+    if not error:
+        return ""
+    return (
+        '<p class="muted" style="color:#b02a37;margin-top:8px;">'
+        f"AI analysis fell back to rules: {esc(error)}</p>"
+    )
+
+
 def render_lead_detail(lead_id: int) -> str:
     with db() as conn:
         lead = get_lead(conn, lead_id)
@@ -144,7 +163,7 @@ def render_lead_detail(lead_id: int) -> str:
     </section>
     <section class="grid two" style="margin-top:18px;">
       <div class="grid">
-        <div class="panel pad"><h2>AI Summary</h2><p>{esc(lead['ai_summary'])}</p><div class="mini"><span>Recommended Action</span><strong>{esc(lead['recommended_action'])}</strong></div></div>
+        <div class="panel pad"><h2>AI Summary {ai_engine_badge(extracted)}</h2><p>{esc(lead['ai_summary'])}</p><div class="mini"><span>Recommended Action</span><strong>{esc(lead['recommended_action'])}</strong></div>{ai_error_note(extracted)}</div>
         <div class="panel pad"><h2>Score Breakdown</h2><div style="margin-top:14px;">{bars}</div></div>
         <div class="panel pad"><h2>Safety Notes</h2><ul>{safety_html}</ul></div>
       </div>

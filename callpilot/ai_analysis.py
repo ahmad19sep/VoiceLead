@@ -166,14 +166,22 @@ def analyze_call_smart(
     """
     analysis = analyze_call(transcript, business, services, knowledge)
     if not ai_available():
-        analysis["ai_provider"] = "rule_based"
-        return analysis
+        return _stamp(analysis, "rule_based")
     try:
         extracted = _extract_with_claude(transcript, business)
     except Exception as error:
-        analysis["ai_provider"] = "rule_based"
-        analysis["ai_error"] = str(error)[:200]
-        return analysis
+        return _stamp(analysis, "rule_based", str(error)[:200])
     merged = merge_ai_extraction(analysis, extracted, transcript)
-    merged["ai_provider"] = configured_model()
-    return merged
+    return _stamp(merged, configured_model())
+
+
+def _stamp(analysis: dict[str, Any], provider: str, error: str | None = None) -> dict[str, Any]:
+    """Record which engine produced the analysis where the UI can see it."""
+    analysis["ai_provider"] = provider
+    fields = dict(analysis.get("extracted_fields") or {})
+    fields["ai_provider"] = provider
+    if error:
+        analysis["ai_error"] = error
+        fields["ai_error"] = error
+    analysis["extracted_fields"] = fields
+    return analysis

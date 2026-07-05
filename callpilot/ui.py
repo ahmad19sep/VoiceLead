@@ -86,6 +86,7 @@ def nav_groups_for_mode(role: str) -> list[tuple[str, list[tuple[str, str, str]]
                 [
                     ("/leads", "Leads", "Leads"),
                     ("/bookings", "Bookings", "Bookings"),
+                    ("/calendar", "Calendar", "Calendar"),
                     ("/calls", "Calls", "Calls"),
                     ("/qa", "QA", "QA"),
                     ("/notifications", "Notifications", "Notifications"),
@@ -121,6 +122,7 @@ def nav_groups_for_mode(role: str) -> list[tuple[str, list[tuple[str, str, str]]
             "Clinic",
             [
                 ("/bookings", "Bookings", "Bookings"),
+                ("/calendar", "Calendar", "Calendar"),
                 ("/calls", "Calls", "Calls"),
                 ("/leads", "Leads", "Patients/Inquiries"),
                 ("/qa", "QA", "QA"),

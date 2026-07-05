@@ -56,6 +56,7 @@ from .telephony import (
 )
 from .utils import lead_temperature, now
 from .views.auth_pages import render_login
+from .views.calendar_page import render_calendar
 from .views import (
     render_agent_builder,
     render_admin_health,
@@ -308,6 +309,8 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_html(render_lead_detail(int(path.rsplit("/", 1)[1])))
         elif path == "/bookings":
             self.send_html(render_bookings(query.get("error", [None])[0]))
+        elif path == "/calendar":
+            self.send_html(render_calendar(query))
         elif path == "/calls":
             self.send_html(render_calls())
         elif path == "/qa":

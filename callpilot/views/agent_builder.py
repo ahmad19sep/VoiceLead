@@ -133,6 +133,12 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
     integration_targets = (business or {}).get("integration_targets") or module["integration_targets"]
     qa_checks = (business or {}).get("qa_checks") or comma(module["qa_checks"])
     workflow_version = (business or {}).get("workflow_version") or "v1"
+    supported_langs = [
+        code.strip()
+        for code in (clinic_profile.get("supported_languages") or "en,ur").split(",")
+        if code.strip()
+    ]
+    default_lang = (clinic_profile.get("default_language") or "ur").strip().lower()
     save_error = query.get("error", [""])[0]
     error_banner = (
         f'<section class="panel pad" style="margin-top:16px;border-color:var(--hot-line);">'
@@ -212,8 +218,21 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
           <option value="Asia/Karachi" {"selected" if clinic_profile.get("timezone") == "Asia/Karachi" else ""}>Asia/Karachi</option>
           <option value="Asia/Dubai" {"selected" if clinic_profile.get("timezone") == "Asia/Dubai" else ""}>Asia/Dubai</option>
         </select></label>
-        <label>Supported languages<input name="clinic_supported_languages" value="{esc(clinic_profile.get('supported_languages') or 'en,ur')}"></label>
-        <label>Default language<input name="clinic_default_language" value="{esc(clinic_profile.get('default_language') or 'ur')}"></label>
+        <div>
+          <label style="margin-bottom:7px;">Languages the agent speaks</label>
+          <div class="actions" style="gap:16px;">
+            <label class="checkline"><input type="checkbox" name="lang_en" value="1" {'checked' if 'en' in supported_langs else ''}> English</label>
+            <label class="checkline"><input type="checkbox" name="lang_ur" value="1" {'checked' if 'ur' in supported_langs else ''}> Urdu (Roman)</label>
+            <label class="checkline"><input type="checkbox" name="lang_ar" value="1" {'checked' if 'ar' in supported_langs else ''}> Arabic</label>
+          </div>
+        </div>
+        <label>Main language on calls
+          <select name="clinic_default_language">
+            <option value="ur" {'selected' if default_lang == 'ur' else ''}>Urdu (Roman)</option>
+            <option value="en" {'selected' if default_lang == 'en' else ''}>English</option>
+            <option value="ar" {'selected' if default_lang == 'ar' else ''}>Arabic</option>
+          </select>
+        </label>
         <label>Cancellation window hours<input type="number" name="clinic_cancellation_window_hours" value="{esc(clinic_profile.get('cancellation_window_hours') or 24)}"></label>
         <label>Reminder offset hours<input type="number" name="clinic_reminder_offset_hours" value="{esc(clinic_profile.get('reminder_offset_hours') or 24)}"></label>
         <label>Recording disclosure<select name="clinic_recording_disclosure_enabled">
@@ -255,6 +274,12 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
     return layout("Agent Builder", "Agent Builder", content)
 
 def save_agent(form: dict[str, str], business_id: int | None = None) -> int:
+    # Language checkboxes (operator-friendly) compose the canonical CSV field;
+    # a directly supplied clinic_supported_languages value still works.
+    checkbox_langs = [code for code in ("en", "ur", "ar") if form.get(f"lang_{code}")]
+    if checkbox_langs:
+        form = dict(form)
+        form["clinic_supported_languages"] = ",".join(checkbox_langs)
     with db() as conn:
         workspace_id = default_workspace_id(conn)
         if business_id:

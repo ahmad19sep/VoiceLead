@@ -7,6 +7,7 @@ from ..knowledge import knowledge_stats
 from ..repositories import get_business, get_businesses, get_knowledge, get_leads, get_services
 from ..storage import db
 from ..ui import badge, status_badge, temp_badge
+from ..voice_prompt import build_vapi_prompt
 from ..utils import esc, title
 
 
@@ -80,6 +81,7 @@ def render_business_detail(business_id: int) -> str:
         clinic_providers = get_clinic_providers(conn, business_id) if clinic_profile else []
         clinic_locations = get_clinic_locations(conn, business_id) if clinic_profile else []
         clinic_holidays = get_clinic_holidays(conn, business_id) if clinic_profile else []
+        vapi_prompt = build_vapi_prompt(conn, business_id) if clinic_profile else None
     production_items = [
         ("Module", title(business.get("module_key") or "custom")),
         ("Workflow", business.get("workflow_version") or "v1"),
@@ -145,6 +147,14 @@ def render_business_detail(business_id: int) -> str:
             <div class="mini"><span>After Hours Policy</span><strong>{esc(clinic_profile.get('after_hours_policy') or 'Not configured')}</strong></div>
           </div>
           <div class="mini" style="margin-top:14px;"><span>Emergency Policy</span><strong>{esc(clinic_profile.get('emergency_policy') or 'Not configured')}</strong></div>
+        </section>
+        <section class="panel pad" style="margin-top:18px;">
+          <div class="row"><h2>Voice Agent Prompt</h2>{badge('Paste into Vapi', 'status-demo')}</div>
+          <p class="muted">Generated from this clinic's Agent Builder settings (languages, hours, services). Urdu output is Roman Urdu. Re-save the agent to refresh it. Setup steps: docs/VAPI_SETUP.md.</p>
+          <div class="mini" style="margin-top:12px;"><span>First Message</span></div>
+          <pre>{esc(vapi_prompt['first_message']) if vapi_prompt else ''}</pre>
+          <div class="mini" style="margin-top:12px;"><span>System Prompt</span></div>
+          <pre>{esc(vapi_prompt['system_prompt']) if vapi_prompt else ''}</pre>
         </section>
         <section class="panel table-wrap" style="margin-top:18px;">
           <div class="pad"><h2>Providers / Doctors</h2></div>

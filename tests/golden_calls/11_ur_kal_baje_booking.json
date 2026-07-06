@@ -1,0 +1,11 @@
+{
+  "name": "ur_kal_baje_booking",
+  "language": "ur",
+  "description": "Roman Urdu relative date (kal) and clock time (11 baje); both must be captured for scheduling.",
+  "transcript": "Assalam o alaikum, mujhe kal subah 11 baje cleaning ke liye appointment chahiye. Mera naam Hassan hai aur number 0300 7778899 hai.",
+  "expect": {
+    "language_code": "ur",
+    "booking_requested": true,
+    "medical_emergency": false
+  }
+}

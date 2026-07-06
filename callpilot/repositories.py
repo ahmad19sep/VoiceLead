@@ -91,8 +91,9 @@ def get_knowledge(
 
 def get_leads(
     conn: sqlite3.Connection,
-    filters: dict[str, str] | None = None,
+    filters: dict[str, Any] | None = None,
     workspace_id: int | None = None,
+    limit: int = 200,
 ) -> list[dict[str, Any]]:
     filters = filters or {}
     workspace_id = active_workspace_id(conn, workspace_id)
@@ -124,7 +125,8 @@ def get_leads(
         args.extend([needle, needle, needle, needle])
     if clauses:
         sql += " where " + " and ".join(clauses)
-    sql += " order by datetime(leads.created_at) desc"
+    sql += " order by leads.created_at desc limit ?"
+    args.append(max(1, int(limit)))
     return [dict(row) for row in conn.execute(sql, args).fetchall()]
 
 def get_lead(
@@ -147,7 +149,7 @@ def get_lead(
     ).fetchone()
     return row_dict(row)
 
-def get_bookings(conn: sqlite3.Connection, workspace_id: int | None = None) -> list[dict[str, Any]]:
+def get_bookings(conn: sqlite3.Connection, workspace_id: int | None = None, limit: int = 200) -> list[dict[str, Any]]:
     workspace_id = active_workspace_id(conn, workspace_id)
     clinic_clause, clinic_args = clinic_business_clause("businesses")
     extra = f" and {clinic_clause}" if clinic_clause else ""
@@ -157,13 +159,14 @@ def get_bookings(conn: sqlite3.Connection, workspace_id: int | None = None) -> l
         from bookings
         left join businesses on businesses.id = bookings.business_id
         where bookings.workspace_id = ?{extra}
-        order by datetime(bookings.created_at) desc
+        order by bookings.created_at desc
+        limit ?
         """,
-        (workspace_id, *clinic_args),
+        (workspace_id, *clinic_args, max(1, int(limit))),
     ).fetchall()
     return [dict(row) for row in rows]
 
-def get_call_logs(conn: sqlite3.Connection, workspace_id: int | None = None) -> list[dict[str, Any]]:
+def get_call_logs(conn: sqlite3.Connection, workspace_id: int | None = None, limit: int = 200) -> list[dict[str, Any]]:
     workspace_id = active_workspace_id(conn, workspace_id)
     clinic_clause, clinic_args = clinic_business_clause("businesses")
     extra = f" and {clinic_clause}" if clinic_clause else ""
@@ -174,13 +177,14 @@ def get_call_logs(conn: sqlite3.Connection, workspace_id: int | None = None) -> 
         left join businesses on businesses.id = call_logs.business_id
         left join leads on leads.id = call_logs.lead_id
         where call_logs.workspace_id = ?{extra}
-        order by datetime(call_logs.created_at) desc
+        order by call_logs.created_at desc
+        limit ?
         """,
-        (workspace_id, *clinic_args),
+        (workspace_id, *clinic_args, max(1, int(limit))),
     ).fetchall()
     return [dict(row) for row in rows]
 
-def get_notifications(conn: sqlite3.Connection, workspace_id: int | None = None) -> list[dict[str, Any]]:
+def get_notifications(conn: sqlite3.Connection, workspace_id: int | None = None, limit: int = 200) -> list[dict[str, Any]]:
     workspace_id = active_workspace_id(conn, workspace_id)
     clinic_clause, clinic_args = clinic_business_clause("businesses")
     extra = f" and {clinic_clause}" if clinic_clause else ""
@@ -191,9 +195,10 @@ def get_notifications(conn: sqlite3.Connection, workspace_id: int | None = None)
         left join businesses on businesses.id = notifications.business_id
         left join leads on leads.id = notifications.lead_id
         where notifications.workspace_id = ?{extra}
-        order by datetime(notifications.created_at) desc
+        order by notifications.created_at desc
+        limit ?
         """,
-        (workspace_id, *clinic_args),
+        (workspace_id, *clinic_args, max(1, int(limit))),
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -220,7 +225,7 @@ def get_qa_evaluations(
     if status and status != "all":
         sql += " and qa_evaluations.qa_status = ?"
         args.append(status)
-    sql += " order by datetime(qa_evaluations.evaluated_at) desc"
+    sql += " order by qa_evaluations.evaluated_at desc"
     return [dict(row) for row in conn.execute(sql, args).fetchall()]
 
 def get_qa_for_lead(
@@ -238,7 +243,7 @@ def get_qa_for_lead(
         left join call_logs on call_logs.id = qa_evaluations.call_log_id
         left join businesses on businesses.id = qa_evaluations.business_id
         where qa_evaluations.lead_id = ? and qa_evaluations.workspace_id = ?{extra}
-        order by datetime(qa_evaluations.evaluated_at) desc
+        order by qa_evaluations.evaluated_at desc
         """,
         (lead_id, workspace_id, *clinic_args),
     ).fetchall()
@@ -258,7 +263,7 @@ def get_events(
             select agent_events.* from agent_events
             left join businesses on businesses.id = agent_events.business_id
             where lead_id = ? and agent_events.workspace_id = ?{extra}
-            order by datetime(agent_events.created_at) desc
+            order by agent_events.created_at desc
             """,
             (lead_id, workspace_id, *clinic_args),
         ).fetchall()
@@ -268,7 +273,7 @@ def get_events(
             select agent_events.* from agent_events
             left join businesses on businesses.id = agent_events.business_id
             where agent_events.workspace_id = ?{extra}
-            order by datetime(agent_events.created_at) desc
+            order by agent_events.created_at desc
             limit 12
             """,
             (workspace_id, *clinic_args),

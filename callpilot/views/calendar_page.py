@@ -107,14 +107,14 @@ def render_calendar(query: dict[str, list[str]]) -> str:
     content = f"""
     <style>
       .cal-grid {{ display:grid; grid-template-columns:repeat(7, 1fr); gap:10px; margin-top:16px; }}
-      .cal-day {{ background:var(--panel, #fff); border:1px solid #dbe4ee; border-radius:10px; padding:8px; min-height:140px; }}
-      .cal-day.today {{ outline:2px solid #0e5fd8; }}
+      .cal-day {{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px; min-height:140px; }}
+      .cal-day.today {{ outline:2px solid var(--blue); }}
       .cal-day-head {{ font-weight:600; font-size:.85rem; margin-bottom:8px; display:flex; justify-content:space-between; }}
-      .cal-day-head span {{ color:#5b6b80; font-weight:400; }}
-      .cal-card {{ background:rgba(14,95,216,.06); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:.8rem; }}
+      .cal-day-head span {{ color:var(--muted); font-weight:400; }}
+      .cal-card {{ background:var(--blue-soft); border-radius:6px; padding:6px 8px; margin-bottom:6px; font-size:.8rem; }}
       .cal-empty {{ text-align:center; padding-top:24px; }}
       .cal-nav {{ display:flex; gap:8px; align-items:center; }}
-      .cal-nav a {{ padding:6px 14px; border:1px solid #c6d3e2; border-radius:8px; text-decoration:none; }}
+      .cal-nav a {{ padding:6px 14px; border:1px solid var(--line-strong); border-radius:8px; text-decoration:none; background:var(--panel); }}
       @media (max-width: 900px) {{ .cal-grid {{ grid-template-columns:repeat(2, 1fr); }} }}
     </style>
     <section class="row">

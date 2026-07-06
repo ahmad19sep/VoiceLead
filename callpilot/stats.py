@@ -33,42 +33,44 @@ def stats(
         lead_where = " where 1 = 0"
         lead_args = []
     today = datetime.now().strftime("%Y-%m-%d")
-    total_leads = conn.execute(f"select count(*) from leads{lead_where}", lead_args).fetchone()[0]
-    total_score = conn.execute(f"select coalesce(sum(lead_score), 0) from leads{lead_where}", lead_args).fetchone()[0]
+    # One aggregate pass over leads instead of six separate scans.
+    lead_row = conn.execute(
+        f"""
+        select count(*) as total,
+               coalesce(sum(lead_score), 0) as score_sum,
+               coalesce(sum(case when lead_temperature = 'hot' then 1 else 0 end), 0) as hot,
+               coalesce(sum(case when lead_temperature = 'warm' then 1 else 0 end), 0) as warm,
+               coalesce(sum(case when lead_temperature = 'cold' then 1 else 0 end), 0) as cold,
+               coalesce(sum(case when handoff_triggered = 1 and status = 'new' then 1 else 0 end), 0) as pending
+        from leads{lead_where}
+        """,
+        lead_args,
+    ).fetchone()
+    call_row = conn.execute(
+        f"""
+        select count(*) as total,
+               coalesce(sum(case when date(created_at) = ? then 1 else 0 end), 0) as today
+        from call_logs{lead_where}
+        """,
+        [today, *lead_args],
+    ).fetchone()
+    total_leads = int(lead_row["total"])
     return {
         "businesses": len(ids),
         "active_agents": conn.execute(
             f"select count(*) from businesses{business_clause} {'and' if business_clause else 'where'} status = 'active'",
             args,
         ).fetchone()[0],
-        "total_calls": conn.execute(
-            f"select count(*) from call_logs{lead_where.replace('business_id', 'business_id')}",
-            lead_args,
-        ).fetchone()[0],
-        "calls_today": conn.execute(
-            f"select count(*) from call_logs{lead_where} and date(created_at) = ?",
-            [*lead_args, today],
-        ).fetchone()[0],
+        "total_calls": int(call_row["total"]),
+        "calls_today": int(call_row["today"]),
         "total_leads": total_leads,
-        "hot_leads": conn.execute(
-            f"select count(*) from leads{lead_where} and lead_temperature = 'hot'",
-            lead_args,
-        ).fetchone()[0],
-        "warm_leads": conn.execute(
-            f"select count(*) from leads{lead_where} and lead_temperature = 'warm'",
-            lead_args,
-        ).fetchone()[0],
-        "cold_leads": conn.execute(
-            f"select count(*) from leads{lead_where} and lead_temperature = 'cold'",
-            lead_args,
-        ).fetchone()[0],
+        "hot_leads": int(lead_row["hot"]),
+        "warm_leads": int(lead_row["warm"]),
+        "cold_leads": int(lead_row["cold"]),
         "bookings": conn.execute(
             f"select count(*) from bookings{lead_where}",
             lead_args,
         ).fetchone()[0],
-        "pending_handoffs": conn.execute(
-            f"select count(*) from leads{lead_where} and handoff_triggered = 1 and status = 'new'",
-            lead_args,
-        ).fetchone()[0],
-        "avg_score": round(total_score / total_leads) if total_leads else 0,
+        "pending_handoffs": int(lead_row["pending"]),
+        "avg_score": round(int(lead_row["score_sum"]) / total_leads) if total_leads else 0,
     }

@@ -104,7 +104,19 @@ def ai_error_note(extracted: dict) -> str:
     )
 
 
-def render_lead_detail(lead_id: int) -> str:
+def delete_control(lead_id: int, query: dict[str, list[str]]) -> str:
+    """Two-step delete: first click shows an explicit red confirmation."""
+    if query.get("confirm_delete", ["0"])[0] == "1":
+        return (
+            f'<form method="post" action="/leads/{lead_id}/delete">'
+            '<button class="btn danger" type="submit">Yes, permanently delete</button></form>'
+            f'<a class="btn" href="/leads/{lead_id}">Cancel</a>'
+        )
+    return f'<a class="btn danger" href="/leads/{lead_id}?confirm_delete=1">Delete</a>'
+
+
+def render_lead_detail(lead_id: int, query: dict[str, list[str]] | None = None) -> str:
+    query = query or {}
     with db() as conn:
         lead = get_lead(conn, lead_id)
         if not lead:
@@ -159,7 +171,7 @@ def render_lead_detail(lead_id: int) -> str:
     <section class="hero" style="margin-top:16px;">
       <div class="row"><div><h1>{esc(lead['customer_name'] or 'Unknown caller')}</h1><p>{esc(lead['business_name'])} - {esc(lead['request_type'])}</p></div><div>{temp_badge(lead['lead_temperature'])} {status_badge(lead['status'])}</div></div>
       <div class="grid three" style="margin-top:14px;"><div class="mini"><span>Score</span><strong>{lead['lead_score']}/100</strong></div><div class="mini"><span>Contact</span><strong>{esc(lead['customer_phone'] or lead['customer_email'] or 'Missing')}</strong></div>{booking_html}</div>
-      <div class="actions" style="margin-top:16px;">{status_buttons}<form method="post" action="/leads/{lead_id}/handoff"><button class="btn primary" type="submit">Trigger Handoff</button></form><form method="post" action="/leads/{lead_id}/delete"><button class="btn danger" type="submit">Delete</button></form></div>
+      <div class="actions" style="margin-top:16px;">{status_buttons}<form method="post" action="/leads/{lead_id}/handoff"><button class="btn primary" type="submit">Trigger Handoff</button></form>{delete_control(lead_id, query)}</div>
     </section>
     <section class="grid two" style="margin-top:18px;">
       <div class="grid">

@@ -34,6 +34,14 @@ def render_demo_call(query: dict[str, list[str]]) -> str:
             ("custom", "Custom Business"),
         ]
     )
+    demo_error = query.get("error", [""])[0]
+    demo_banner = (
+        '<section class="panel pad" style="margin-top:16px;border-color:var(--warm-line);">'
+        "Please paste a real call transcript first (at least a sentence) - an empty "
+        "transcript would create a junk patient record.</section>"
+        if demo_error == "short"
+        else ""
+    )
     content = f"""
     <section class="row">
       <div>
@@ -42,6 +50,7 @@ def render_demo_call(query: dict[str, list[str]]) -> str:
       </div>
       {badge('Mock AI', 'status-demo')}
     </section>
+    {demo_banner}
     <section class="grid metrics">
       {metric('Businesses', len(businesses))}
       {metric('Samples', len(SAMPLE_TRANSCRIPTS))}

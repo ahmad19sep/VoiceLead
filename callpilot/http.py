@@ -54,6 +54,7 @@ from .telephony import (
     twilio_finish_twiml,
     twilio_gather_twiml,
 )
+from .ui import THEME_SCRIPT_HASH
 from .utils import lead_temperature, now
 from .views.auth_pages import render_login
 from .views.calendar_page import render_calendar
@@ -96,9 +97,13 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")
+        if app_url().lower().startswith("https://"):
+            self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'",
+            "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+            f"script-src 'self' 'sha256-{THEME_SCRIPT_HASH}'; "
+            "img-src 'self' data:; form-action 'self'",
         )
 
     def send_html(self, content: str, status: int = 200) -> None:
@@ -306,7 +311,7 @@ class CallPilotHandler(BaseHTTPRequestHandler):
         elif path == "/leads":
             self.send_html(render_leads(query))
         elif re.fullmatch(r"/leads/\d+", path):
-            self.send_html(render_lead_detail(int(path.rsplit("/", 1)[1])))
+            self.send_html(render_lead_detail(int(path.rsplit("/", 1)[1]), query))
         elif path == "/bookings":
             self.send_html(render_bookings(query.get("error", [None])[0]))
         elif path == "/calendar":
@@ -498,19 +503,32 @@ class CallPilotHandler(BaseHTTPRequestHandler):
             self.send_clinic_hidden()
             return
         if path == "/agent-builder/create":
-            business_id = save_agent(self.form())
+            try:
+                business_id = save_agent(self.form())
+            except ValueError as error:
+                self.redirect(f"/agent-builder?error={urlencode({'': str(error)})[1:]}")
+                return
             self.redirect(f"/businesses/{business_id}")
             return
         update_match = re.fullmatch(r"/agent-builder/(\d+)/update", path)
         if update_match:
             business_id = int(update_match.group(1))
-            save_agent(self.form(), business_id)
+            try:
+                save_agent(self.form(), business_id)
+            except ValueError as error:
+                self.redirect(
+                    f"/agent-builder?business_id={business_id}&error={urlencode({'': str(error)})[1:]}"
+                )
+                return
             self.redirect(f"/businesses/{business_id}")
             return
         if path == "/demo-call/analyze":
             form = self.form()
             business_id = int(form.get("business_id") or 1)
-            transcript = form.get("transcript", "")
+            transcript = form.get("transcript", "").strip()
+            if len(transcript) < 10:
+                self.redirect(f"/demo-call?business_id={business_id}&error=short")
+                return
             with db() as conn:
                 business = get_business(conn, business_id)
                 if not business:

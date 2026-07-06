@@ -252,6 +252,28 @@ Source pack reviewed: `00` master architecture plus modules `01` through `12`, d
 - Added `docs/DEPLOY_FREE.md`: Render free-plan walkthrough (sleep/cold-start and ephemeral-disk caveats stated honestly), laptop+ngrok option for live Twilio call demos, and the upgrade path once a client pays.
 - Added regression tests for PORT fallback/precedence and demo-viewer seeding, idempotency, and browse-yes/mutate-no HTTP behavior.
 
+## Implemented In Production Hardening Slice (scale, theme, trilingual, safety)
+
+- Scale: SQLite WAL journal with NORMAL sync and busy timeout for the threaded
+  server; LIMIT-bounded list reads (leads/bookings/calls/notifications, default
+  200); index-friendly `created_at` ordering; dashboard stats consolidated from
+  eight scans into two aggregate queries.
+- Dark theme: full light/dark CSS variable system with `prefers-color-scheme`
+  default, a persisted toggle (localStorage), themed calendar and login pages,
+  and a CSP sha256 hash for the tiny theme script so `default-src 'self'` stays strict.
+- Non-technical labels in clinic mode: Call History, Call Quality, Alerts.
+- Trilingual caller reality: Urdu clock times ("11 baje", shaam/subah AM-PM),
+  Arabic clock ("الساعة ٤ مساء"), Arabic-Indic digit normalization, Roman Urdu
+  relative dates (kal/parso/aaj, "agla mangal"), Arabic relative dates
+  (غدا/بعد غد); expanded EN/UR/AR emergency phrase lists; `confirm_details`
+  and `not_understood` prompts added to all three voice packs.
+- Mistake-proofing: two-step lead delete confirmation, minimum-length demo
+  transcript validation, Agent Builder save errors shown as a banner instead
+  of crashing the request.
+- Security: `Secure` session cookies and HSTS automatically when APP_URL is
+  HTTPS.
+- New golden script for the kal/baje booking path (11 goldens total).
+
 ## PDF Pack Mapped Modules
 
 - Healthcare, clinics, hospitals, dentists

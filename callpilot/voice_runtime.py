@@ -51,6 +51,8 @@ PROMPT_PACKS: dict[str, dict[str, str]] = {
             "I am alerting clinic staff immediately. I cannot give medical advice."
         ),
         "handoff_script": "I will ask our clinic staff to call you back as soon as possible.",
+        "confirm_details": "Let me confirm: {details}. Is that correct?",
+        "not_understood": "Sorry, I did not catch that clearly. Could you please repeat it?",
         "fallback": "I can take your name and number and have the clinic team call you back.",
         "closing": "Thank you for calling {clinic_name}. Your request has been noted.",
     },
@@ -64,6 +66,8 @@ PROMPT_PACKS: dict[str, dict[str, str]] = {
             "Main clinic staff ko foran ittila kar rahi hoon. Main tibbi mashwara nahi de sakti."
         ),
         "handoff_script": "Main clinic staff se kahoongi ke aap ko jald az jald call back karen.",
+        "confirm_details": "Main tasdeeq kar loon: {details}. Kya yeh durust hai?",
+        "not_understood": "Maazrat, main theek se sun nahi saki. Barah-e-karam dobara bata dijiye.",
         "fallback": "Main aap ka naam aur number le kar clinic team se call back karwa sakti hoon.",
         "closing": "{clinic_name} mein call karne ka shukriya. Aap ki request note kar li gayi hai.",
     },
@@ -77,6 +81,8 @@ PROMPT_PACKS: dict[str, dict[str, str]] = {
             "سأقوم بتنبيه طاقم العيادة حالا. لا يمكنني تقديم نصيحة طبية."
         ),
         "handoff_script": "سأطلب من طاقم العيادة معاودة الاتصال بك في أقرب وقت ممكن.",
+        "confirm_details": "دعني أتأكد: {details}. هل هذا صحيح؟",
+        "not_understood": "عذرا، لم أسمع ذلك بوضوح. هل يمكنك التكرار من فضلك؟",
         "fallback": "يمكنني تسجيل اسمك ورقمك ليقوم فريق العيادة بمعاودة الاتصال بك.",
         "closing": "شكرا لاتصالك بعيادة {clinic_name}. تم تسجيل طلبك.",
     },
@@ -118,7 +124,11 @@ def resolve_language(
 def prompt_pack(language: str, clinic_name: str = "", agent_name: str = "") -> dict[str, str]:
     pack = PROMPT_PACKS.get(language if language in PROMPT_PACKS else "en", PROMPT_PACKS["en"])
     return {
-        key: value.format(clinic_name=clinic_name or "the clinic", agent_name=agent_name or "the assistant")
+        key: value.format(
+            clinic_name=clinic_name or "the clinic",
+            agent_name=agent_name or "the assistant",
+            details="{details}",  # runtime fills this per call
+        )
         for key, value in pack.items()
     }
 

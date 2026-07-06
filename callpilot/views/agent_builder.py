@@ -133,6 +133,13 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
     integration_targets = (business or {}).get("integration_targets") or module["integration_targets"]
     qa_checks = (business or {}).get("qa_checks") or comma(module["qa_checks"])
     workflow_version = (business or {}).get("workflow_version") or "v1"
+    save_error = query.get("error", [""])[0]
+    error_banner = (
+        f'<section class="panel pad" style="margin-top:16px;border-color:var(--hot-line);">'
+        f'<strong style="color:var(--hot);">Could not save:</strong> {esc(save_error)}</section>'
+        if save_error
+        else ""
+    )
     content = f"""
     <section class="row">
       <div>
@@ -144,6 +151,7 @@ def render_agent_builder(query: dict[str, list[str]]) -> str:
         {'<a class="btn primary" href="/demo-call?business_id='+str(business_id)+'">Test Call</a>' if business else ''}
       </div>
     </section>
+    {error_banner}
     <section class="grid metrics">
       {metric('Mode', 'Edit' if business else 'Create', 'good' if business else '')}
       {metric('Module', module['label'])}

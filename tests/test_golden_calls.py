@@ -86,6 +86,18 @@ class DateExtractionRegressionTest(unittest.TestCase):
         self.assertEqual(extract_timeline("I need it tomorrow"), "tomorrow")
         self.assertIsNone(extract_time("the year 2026-07-08 alone is not a time"))
 
+    def test_urdu_and_arabic_time_date_phrases(self) -> None:
+        from callpilot.analysis import extract_time, extract_timeline, normalize_digits
+
+        self.assertEqual(extract_time("kal subah 11 baje aana hai"), "11:00")
+        self.assertEqual(extract_time("shaam 5 baje ka time"), "17:00")
+        self.assertEqual(extract_time("الساعة ٤ مساء"), "16:00")
+        self.assertEqual(extract_timeline("mujhe kal appointment chahiye"), "kal")
+        self.assertEqual(extract_timeline("parso ka waqt mil jaye"), "parso")
+        self.assertEqual(extract_timeline("agla mangal ko"), "agla mangal")
+        self.assertIsNotNone(extract_timeline("أريد موعدا غدا"))
+        self.assertEqual(normalize_digits("٠٣٠٠١٢٣٤٥٦٧"), "03001234567")
+
 
 if __name__ == "__main__":
     unittest.main()

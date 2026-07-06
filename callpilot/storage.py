@@ -18,9 +18,15 @@ def configured_db_path() -> Path:
 def db() -> sqlite3.Connection:
     path = configured_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("pragma foreign_keys = on")
+    # WAL lets concurrent readers proceed while one writer commits - essential
+    # under the threaded HTTP server; NORMAL sync is safe with WAL and much
+    # faster than FULL. busy_timeout retries briefly instead of erroring.
+    conn.execute("pragma journal_mode = wal")
+    conn.execute("pragma synchronous = normal")
+    conn.execute("pragma busy_timeout = 5000")
     return conn
 
 def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:

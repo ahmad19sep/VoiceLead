@@ -110,7 +110,16 @@ def extract_people(text: str) -> str | None:
         return match.group(1)
     return None
 
+ARABIC_INDIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def normalize_digits(text: str) -> str:
+    """Convert Arabic-Indic and Urdu digits so callers' numbers parse."""
+    return (text or "").translate(ARABIC_INDIC_DIGITS)
+
+
 def extract_time(text: str) -> str | None:
+    text = normalize_digits(text)
     match = re.search(r"\b(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM))\b", text)
     if match:
         return match.group(1)
@@ -118,9 +127,27 @@ def extract_time(text: str) -> str | None:
     match = re.search(r"\bat\s+([01]?\d|2[0-3]):([0-5]\d)\b", text)
     if match:
         return f"{match.group(1)}:{match.group(2)}"
+    # Urdu clock: "11 baje", "saarhe 3 baje"; shaam/raat imply PM, subah AM.
+    match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(?:baje|bajay|bje)\b", text, re.IGNORECASE)
+    if match:
+        hour = int(match.group(1)) % 24
+        minute = match.group(2) or "00"
+        window = text.lower()
+        if hour <= 11 and re.search(r"\b(shaam|sham|raat|dopehar|dopahar|zuhr)\b", window):
+            hour += 12
+        return f"{hour:02d}:{minute}"
+    # Arabic clock: "الساعة 11" (optionally مساء / evening).
+    match = re.search(r"الساعة\s*(\d{1,2})(?::(\d{2}))?", text)
+    if match:
+        hour = int(match.group(1)) % 24
+        minute = match.group(2) or "00"
+        if hour <= 11 and re.search(r"مساء|المساء|ليلا", text):
+            hour += 12
+        return f"{hour:02d}:{minute}"
     return None
 
 def extract_timeline(text: str) -> str | None:
+    text = normalize_digits(text)
     # Explicit calendar dates win: ISO (2026-07-08) or numeric (08/07/2026).
     match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
     if match:
@@ -137,11 +164,19 @@ def extract_timeline(text: str) -> str | None:
         r"\b(next week)\b",
         r"\b(next month)\b",
         r"\b(as soon as possible|asap|immediately|now)\b",
+        # Roman Urdu relative days: kal = tomorrow, parso = day after, aaj = today.
+        r"\b(parso|kal subah|kal shaam|kal|aaj|aj)\b",
+        # Urdu weekday phrases like "agla mangal" (next Tuesday).
+        r"\b(agla \w+|aglay \w+)\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:
             return match.group(1)
+    # Arabic relative days.
+    match = re.search(r"(بعد غد|غدا|اليوم)", text)
+    if match:
+        return match.group(1)
     return None
 
 def _language_code(text: str) -> str:

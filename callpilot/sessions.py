@@ -57,6 +57,10 @@ def session_from_cookie_header(cookie_header: str | None) -> dict[str, Any]:
     return verify_session(morsel.value if morsel else None)
 
 
+def _served_over_https() -> bool:
+    return (os.environ.get("APP_URL") or "").strip().lower().startswith("https://")
+
+
 def build_session_cookie(payload: dict[str, Any], max_age: int = 60 * 60 * 24 * 30) -> str:
     cookie = SimpleCookie()
     cookie[SESSION_COOKIE] = sign_session(payload)
@@ -64,4 +68,6 @@ def build_session_cookie(payload: dict[str, Any], max_age: int = 60 * 60 * 24 * 
     cookie[SESSION_COOKIE]["httponly"] = True
     cookie[SESSION_COOKIE]["samesite"] = "Lax"
     cookie[SESSION_COOKIE]["max-age"] = str(max_age)
+    if _served_over_https():
+        cookie[SESSION_COOKIE]["secure"] = True
     return cookie.output(header="").strip()

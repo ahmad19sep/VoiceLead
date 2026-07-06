@@ -72,6 +72,23 @@ The current tenant foundation includes a default workspace, default owner user, 
 - The C0-C11 local clinic critical path is complete; the fresh-clone dry run is recorded in `docs/evidence/FRESH_CLONE_REPORT.md`. What remains is credential-gated: live Twilio/Vapi/Retell/Google Calendar integrations with recorded proof calls, a hosted production instance, and post-revenue postgres/migrations plus fake-provider E2E in CI. C3 delivered the versioned booking state machine, C4 calendar sync seams, C5 trilingual prompt packs and session config, C6 emergency detection with PHI-free escalation, C7 the policy-gated reminder job, C8 real password authentication, and C9 the golden EN/UR/AR call harness in CI — but the live Google Calendar API client, a live Vapi/Retell runtime adapter, real Twilio delivery, user invitations/password reset, and real alert channels await real credentials.
 - C1 still needs richer UI/browser E2E evidence and stricter field-level validation before production, but the local schema, internal operator save path, and persistence tests are implemented.
 
+## Production Hardening Baseline
+
+- SQLite runs in WAL mode with busy timeout; list reads are LIMIT-bounded and
+  ordered index-friendly; dashboard stats aggregate in two queries. With the
+  workspace indexes this keeps page loads fast as call volume grows.
+- The UI ships light and dark themes (system preference plus a persisted
+  toggle) behind a strict CSP (theme script allowed by sha256 hash only);
+  clinic-mode navigation uses non-technical labels.
+- Caller-language coverage includes Urdu clock/date phrases (baje, kal, parso,
+  agla <day>), Arabic clock/date phrases and Arabic-Indic digits, and expanded
+  trilingual emergency phrase lists; voice packs carry confirm/repeat prompts
+  so the bot verifies instead of guessing.
+- Destructive/error-prone operator actions are guarded: two-step lead delete,
+  demo-transcript validation, Agent Builder errors surface as banners.
+- Sessions set the Secure cookie flag and responses send HSTS when APP_URL is
+  HTTPS. `docs/VAPI_SETUP.md` documents the live voice-agent setup.
+
 ## Current Verification
 
 - `python -m compileall app.py worker.py callpilot`

@@ -54,6 +54,12 @@ def build_vapi_prompt(conn: sqlite3.Connection, business_id: int) -> dict[str, s
 LANGUAGE: Detect the caller's language. Speak only: {language_line}.
 If the caller uses a language you do not support, politely continue in {LANGUAGE_LABELS[default_language].split(' (')[0]} and offer a staff callback.
 Default language: {LANGUAGE_LABELS[default_language].split(' (')[0]}. Keep every reply to 1-2 short sentences; this is a phone call.
+TRANSCRIPTION TOLERANCE: The caller's speech is auto-transcribed and Urdu words
+are often garbled or spelled oddly. Interpret generously from context instead of
+saying you did not understand. Never trust a garbled name, phone number, or date -
+always repeat it back digit by digit / word by word and get a clear "yes" before
+moving on. If it is still unclear after two tries, take a callback number and
+offer a staff call.
 
 YOUR JOB, in order:
 1. Understand what the caller needs (appointment, question, cancellation).
